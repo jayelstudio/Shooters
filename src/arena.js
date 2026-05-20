@@ -217,78 +217,82 @@ const CROWD_IMG_CANDIDATES = [
   './game-arena.PNG', './game-arena.png',
   './arena.png', './arena.jpg', './assets/arena.png', './assets/arena.jpg',
 ];
-// Sub-rectangle of the photo that is pure crowd (no court / no hoop / no LED
-// ribbon), as fractions of width/height — a left-side seating block.
-const CROWD_CROP = { x: 0.06, y: 0.20, w: 0.24, h: 0.22 };
+// Full-photo backdrop placed behind the basket. In portrait the horizontal view
+// is narrow, so one flat plane fills the whole back of the arena with no
+// repetition or distortion. Tunable from a screenshot.
+const BACKDROP = {
+  z: -14,         // distance behind the basket
+  yCenter: 1.0,   // vertical center of the photo plane
+  width: 96,      // ~native aspect (1854x848 -> 2.18) at this height
+  height: 44,
+  brightness: 1.0,
+  toneMapped: true,
+};
 
 function buildCrowd(group) {
-  const procTex = crowdTexture();
-  const stands = [];
+  loadFirstTexture(
+    CROWD_IMG_CANDIDATES,
+    (tex) => buildArenaBackdrop(group, tex),
+    () => buildProceduralStands(group)
+  );
+}
 
-  function crowdMaterial(tex, repeatX, repeatY) {
-    const m = tex.clone();
-    m.wrapS = m.wrapT = THREE.RepeatWrapping;
-    m.repeat.set(repeatX, repeatY);
-    m.needsUpdate = true;
-    // emissiveMap keeps the distant crowd readable regardless of arena lighting
-    return new THREE.MeshStandardMaterial({
-      map: m, emissiveMap: m, emissive: 0xffffff, emissiveIntensity: 0.65,
-      roughness: 1, side: THREE.DoubleSide,
-    });
-  }
+// Single full-photo backdrop — the real arena fills the back of the scene.
+function buildArenaBackdrop(group, tex) {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.anisotropy = 8;
+  const mat = new THREE.MeshBasicMaterial({
+    map: tex, side: THREE.DoubleSide, toneMapped: BACKDROP.toneMapped, fog: false,
+  });
+  if (BACKDROP.brightness !== 1) mat.color.setScalar(BACKDROP.brightness);
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(BACKDROP.width, BACKDROP.height), mat);
+  plane.position.set(0, BACKDROP.yCenter, BACKDROP.z);
+  plane.name = 'arenaBackdrop';
+  group.add(plane);
+}
 
+// Fallback when no photo is supplied: the original tiled procedural crowd bowl.
+function buildProceduralStands(group) {
+  const crowdTex = crowdTexture();
   function stand(x, z, rotY, w) {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, 9), crowdMaterial(procTex, w / 4, 2));
+    const tex = crowdTex.clone();
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(w / 4, 2);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, 9),
+      new THREE.MeshStandardMaterial({
+        map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.5,
+        roughness: 1, side: THREE.DoubleSide,
+      }));
     m.position.set(x, 4, z);
     m.rotation.y = rotY;
     m.rotation.x = -0.32;
-    m.userData.repeatX = w / 4;
     group.add(m);
-    stands.push(m);
-    // base wall
     const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 2, 0.4),
       new THREE.MeshStandardMaterial({ color: 0x111419, roughness: 0.9 }));
     wall.position.set(x, 1, z);
     wall.rotation.y = rotY;
     group.add(wall);
   }
-  stand(0, -9.5, 0, 30);          // behind hoop
-  stand(0, 22, Math.PI, 30);      // behind player
-  stand(-13, 6, Math.PI / 2, 34); // left
-  stand(13, 6, -Math.PI / 2, 34); // right
+  stand(0, -9.5, 0, 30);
+  stand(0, 22, Math.PI, 30);
+  stand(-13, 6, Math.PI / 2, 34);
+  stand(13, 6, -Math.PI / 2, 34);
 
-  // dark ceiling void
   const ceil = new THREE.Mesh(new THREE.PlaneGeometry(60, 60),
     new THREE.MeshStandardMaterial({ color: 0x070809, roughness: 1 }));
   ceil.rotation.x = Math.PI / 2;
   ceil.position.y = 16;
   group.add(ceil);
-
-  // Swap in the real arena photo's crowd if one was supplied.
-  loadFirstTexture(CROWD_IMG_CANDIDATES, (tex) => {
-    const cropped = cropToCanvasTexture(tex, CROWD_CROP);
-    if (!cropped) return;
-    for (const m of stands) {
-      const t = cropped.clone();
-      t.colorSpace = THREE.SRGBColorSpace;
-      t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.repeat.set(m.userData.repeatX, 2);
-      t.needsUpdate = true;
-      m.material.map = t;
-      m.material.emissiveMap = t;
-      m.material.emissiveIntensity = 0.8;
-      m.material.needsUpdate = true;
-    }
-  });
 }
 
 // Try each path in order; skip empty/invalid files; call onLoad with the first
-// real image texture. Silently does nothing if none load (procedural fallback).
-function loadFirstTexture(paths, onLoad) {
+// real image, or onFail if none load.
+function loadFirstTexture(paths, onLoad, onFail) {
   const loader = new THREE.TextureLoader();
   let i = 0;
   const tryNext = () => {
-    if (i >= paths.length) return;
+    if (i >= paths.length) { onFail && onFail(); return; }
     const p = paths[i++];
     loader.load(
       p,
@@ -304,28 +308,6 @@ function loadFirstTexture(paths, onLoad) {
     );
   };
   tryNext();
-}
-
-// Crop a fractional sub-rectangle of a texture's image onto a tileable canvas.
-function cropToCanvasTexture(tex, crop) {
-  const img = tex.image;
-  if (!img) return null;
-  const iw = img.naturalWidth || img.width;
-  const ih = img.naturalHeight || img.height;
-  const sx = Math.floor(crop.x * iw);
-  const sy = Math.floor(crop.y * ih);
-  const sw = Math.max(1, Math.floor(crop.w * iw));
-  const sh = Math.max(1, Math.floor(crop.h * ih));
-  const cw = 512;
-  const ch = Math.max(64, Math.round(cw * sh / sw));
-  const c = document.createElement('canvas');
-  c.width = cw; c.height = ch;
-  try {
-    c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
-  } catch (e) {
-    return null;
-  }
-  return new THREE.CanvasTexture(c);
 }
 
 function buildLightRig(group) {
