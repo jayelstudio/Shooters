@@ -78,7 +78,7 @@ export function buildArena(scene, renderer) {
   buildHoop(group);
 
   // ---- Stands / crowd + arena shell ----
-  buildStands(group);
+  buildCrowd(group);
   buildLightRig(group);
 
   // ---- Lights ----
@@ -212,24 +212,40 @@ function buildNet() {
   return net;
 }
 
-function buildStands(group) {
-  const crowdTex = crowdTexture();
-  const mat = new THREE.MeshStandardMaterial({ map: crowdTex.clone(), roughness: 0.95, side: THREE.DoubleSide });
-  mat.map.repeat.set(6, 2);
+// Candidate paths/extensions for the user-supplied arena photo.
+const CROWD_IMG_CANDIDATES = ['./arena.png', './arena.jpg', './arena.jpeg', './assets/arena.png', './assets/arena.jpg'];
+// Sub-rectangle of the photo that is pure crowd (no court / no hoop), as
+// fractions of width/height. Tunable once you can see the result.
+const CROWD_CROP = { x: 0.05, y: 0.14, w: 0.22, h: 0.20 };
+
+function buildCrowd(group) {
+  const procTex = crowdTexture();
+  const stands = [];
+
+  function crowdMaterial(tex, repeatX, repeatY) {
+    const m = tex.clone();
+    m.wrapS = m.wrapT = THREE.RepeatWrapping;
+    m.repeat.set(repeatX, repeatY);
+    m.needsUpdate = true;
+    // emissiveMap keeps the distant crowd readable regardless of arena lighting
+    return new THREE.MeshStandardMaterial({
+      map: m, emissiveMap: m, emissive: 0xffffff, emissiveIntensity: 0.65,
+      roughness: 1, side: THREE.DoubleSide,
+    });
+  }
 
   function stand(x, z, rotY, w) {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, 9), mat.clone());
-    m.material.map = crowdTex.clone();
-    m.material.map.wrapS = m.material.map.wrapT = THREE.RepeatWrapping;
-    m.material.map.repeat.set(w / 4, 2);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, 9), crowdMaterial(procTex, w / 4, 2));
     m.position.set(x, 4, z);
     m.rotation.y = rotY;
     m.rotation.x = -0.32;
+    m.userData.repeatX = w / 4;
     group.add(m);
+    stands.push(m);
     // base wall
     const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 2, 0.4),
       new THREE.MeshStandardMaterial({ color: 0x111419, roughness: 0.9 }));
-    wall.position.set(x, 1, z + Math.sin(rotY) * 0.0);
+    wall.position.set(x, 1, z);
     wall.rotation.y = rotY;
     group.add(wall);
   }
@@ -244,6 +260,69 @@ function buildStands(group) {
   ceil.rotation.x = Math.PI / 2;
   ceil.position.y = 16;
   group.add(ceil);
+
+  // Swap in the real arena photo's crowd if one was supplied.
+  loadFirstTexture(CROWD_IMG_CANDIDATES, (tex) => {
+    const cropped = cropToCanvasTexture(tex, CROWD_CROP);
+    if (!cropped) return;
+    for (const m of stands) {
+      const t = cropped.clone();
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(m.userData.repeatX, 2);
+      t.needsUpdate = true;
+      m.material.map = t;
+      m.material.emissiveMap = t;
+      m.material.emissiveIntensity = 0.95;
+      m.material.needsUpdate = true;
+    }
+  });
+}
+
+// Try each path in order; skip empty/invalid files; call onLoad with the first
+// real image texture. Silently does nothing if none load (procedural fallback).
+function loadFirstTexture(paths, onLoad) {
+  const loader = new THREE.TextureLoader();
+  let i = 0;
+  const tryNext = () => {
+    if (i >= paths.length) return;
+    const p = paths[i++];
+    loader.load(
+      p,
+      (tex) => {
+        const img = tex.image;
+        const w = (img && (img.naturalWidth || img.width)) || 0;
+        const h = (img && (img.naturalHeight || img.height)) || 0;
+        if (w < 8 || h < 8) { tryNext(); return; }
+        onLoad(tex);
+      },
+      undefined,
+      () => tryNext()
+    );
+  };
+  tryNext();
+}
+
+// Crop a fractional sub-rectangle of a texture's image onto a tileable canvas.
+function cropToCanvasTexture(tex, crop) {
+  const img = tex.image;
+  if (!img) return null;
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  const sx = Math.floor(crop.x * iw);
+  const sy = Math.floor(crop.y * ih);
+  const sw = Math.max(1, Math.floor(crop.w * iw));
+  const sh = Math.max(1, Math.floor(crop.h * ih));
+  const cw = 512;
+  const ch = Math.max(64, Math.round(cw * sh / sw));
+  const c = document.createElement('canvas');
+  c.width = cw; c.height = ch;
+  try {
+    c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+  } catch (e) {
+    return null;
+  }
+  return new THREE.CanvasTexture(c);
 }
 
 function buildLightRig(group) {
