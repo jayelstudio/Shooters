@@ -1,0 +1,307 @@
+import * as THREE from 'three';
+import { CONFIG } from './config.js';
+
+const $ = (id) => document.getElementById(id);
+
+export class Game {
+  constructor({ scene, camera, renderer, player, ball, audio }) {
+    this.scene = scene;
+    this.camera = camera;
+    this.renderer = renderer;
+    this.player = player;
+    this.ball = ball;
+    this.audio = audio;
+
+    this.state = 'idle'; // idle | ready | charging | shot | resetting | over
+    this.level = 1;
+    this.score = 0;
+    this.lives = CONFIG.game.startLives;
+    this.makes = 0;
+    this.required = CONFIG.game.baseRequired;
+    this.streak = 0;
+
+    this.targetIndex = 2;
+
+    // meter
+    this.m = 0;
+    this.mDir = 1;
+    this.mSpeed = CONFIG.meter.baseSpeed;
+    this.perfectTol = CONFIG.meter.basePerfectTol;
+
+    this._resetTimer = 0;
+    this._bannerTimer = 0;
+
+    this._buildMarker();
+    this._wireBall();
+    this._wireInput();
+    this._refreshHUD();
+  }
+
+  _buildMarker() {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.45, 0.62, 40),
+      new THREE.MeshStandardMaterial({
+        color: 0x39d0ff, emissive: 0x39d0ff, emissiveIntensity: 1.2,
+        transparent: true, opacity: 0.8, side: THREE.DoubleSide,
+      })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.02;
+    this.marker = ring;
+    this.scene.add(ring);
+    this._placeMarker();
+  }
+
+  _placeMarker() {
+    const s = this.player.spots[this.targetIndex];
+    this.marker.position.set(s.x, 0.02, s.z);
+  }
+
+  _wireBall() {
+    this.ball.onScore = () => this._onMake();
+    this.ball.onResolved = (scored) => this._onResolved(scored);
+  }
+
+  _wireInput() {
+    const press = (el, down, up) => {
+      el.addEventListener('pointerdown', (e) => { e.preventDefault(); down(); });
+      el.addEventListener('pointerup', (e) => { e.preventDefault(); up && up(); });
+      el.addEventListener('pointercancel', (e) => { e.preventDefault(); up && up(); });
+      el.addEventListener('pointerleave', (e) => { if (e.buttons) { up && up(); } });
+    };
+
+    press($('btn-shoot'),
+      () => this._startCharge(),
+      () => this._release());
+
+    press($('btn-dribble'),
+      () => { if (this.state === 'ready') { this.ball.startDribble(); } },
+      () => this.ball.stopDribble());
+
+    $('btn-left').addEventListener('pointerdown', (e) => { e.preventDefault(); this._move(-1); });
+    $('btn-right').addEventListener('pointerdown', (e) => { e.preventDefault(); this._move(1); });
+
+    $('btn-start').addEventListener('click', () => this.start());
+    $('btn-restart').addEventListener('click', () => this.restart());
+  }
+
+  start() {
+    this.audio.init();
+    this.audio.resume();
+    $('overlay-start').classList.add('hidden');
+    this.state = 'ready';
+    this.player.setPose(0);
+    this._pickTarget(true);
+    this._banner(`Level ${this.level}`, 1.4);
+  }
+
+  restart() {
+    this.level = 1;
+    this.score = 0;
+    this.lives = CONFIG.game.startLives;
+    this.makes = 0;
+    this.required = CONFIG.game.baseRequired;
+    this.streak = 0;
+    this.mSpeed = CONFIG.meter.baseSpeed;
+    this.perfectTol = CONFIG.meter.basePerfectTol;
+    $('overlay-over').classList.add('hidden');
+    this.ball.holdAtHands();
+    this.state = 'ready';
+    this._pickTarget(true);
+    this._refreshHUD();
+    this._banner(`Level ${this.level}`, 1.4);
+  }
+
+  _move(dir) {
+    if (this.state !== 'ready') return;
+    if (dir < 0) this.player.moveLeft(); else this.player.moveRight();
+    this._updateMoveHint();
+  }
+
+  _startCharge() {
+    if (this.state !== 'ready' || !this.ball.isHeld()) return;
+    this.ball.stopDribble();
+    this.state = 'charging';
+    this.m = 0;
+    this.mDir = 1;
+    this.player.setPose(1);
+    $('meter').classList.add('active');
+  }
+
+  _release() {
+    if (this.state !== 'charging') return;
+    this.state = 'shot';
+    $('meter').classList.remove('active');
+
+    const off = this.m - 0.5;
+    const aoff = Math.abs(off);
+    const { spread } = CONFIG.meter;
+    let factor, lateral, perfect = false;
+    if (aoff <= this.perfectTol) {
+      factor = 1;
+      lateral = (Math.random() - 0.5) * 0.004;
+      perfect = true;
+    } else {
+      const sign = Math.sign(off);
+      const t = (aoff - this.perfectTol) / (0.5 - this.perfectTol);
+      factor = 1 + sign * spread * t;
+      lateral = (Math.random() - 0.5) * 0.05 * t;
+    }
+    this.lastPerfect = perfect;
+    this.lastFromTarget = this.player.index === this.targetIndex;
+    this.ball.shoot(factor, lateral);
+  }
+
+  _onMake() {
+    let pts = CONFIG.game.pointsMake;
+    if (this.lastPerfect) pts += CONFIG.game.pointsPerfect;
+    this.streak++;
+    if (this.streak >= 3) pts += this.streak - 2; // small streak bonus
+    this.score += pts;
+
+    this._popup(this.lastPerfect ? 'SWISH! +' + pts : 'BUCKET +' + pts, '#39ff9e');
+    this.audio.cheer(this.lastPerfect);
+
+    if (this.lastFromTarget) {
+      this.makes++;
+      this._pickTarget(false);
+      if (this.makes >= this.required) this._levelUp();
+    }
+    this._refreshHUD();
+  }
+
+  _onResolved(scored) {
+    if (!scored) {
+      this.streak = 0;
+      this.lives--;
+      this._popup('MISS', '#ff5a6a');
+      this.audio.miss();
+      this._refreshHUD();
+      if (this.lives <= 0) { this._gameOver(); return; }
+    }
+    this.state = 'resetting';
+    this._resetTimer = scored ? 0.9 : 0.8;
+  }
+
+  _levelUp() {
+    this.level++;
+    this.makes = 0;
+    this.required = CONFIG.game.baseRequired + (this.level - 1) * CONFIG.game.requiredPerLevel;
+    this.mSpeed = CONFIG.meter.baseSpeed + (this.level - 1) * CONFIG.meter.speedPerLevel;
+    this.perfectTol = Math.max(
+      CONFIG.meter.minPerfectTol,
+      CONFIG.meter.basePerfectTol - (this.level - 1) * CONFIG.meter.tolPerLevel
+    );
+    this.audio.levelUp();
+    this._banner(`Level ${this.level}!`, 1.6);
+    this._pickTarget(true);
+  }
+
+  _gameOver() {
+    this.state = 'over';
+    this.audio.buzzer();
+    $('final-score').textContent = `Score ${this.score} · Level ${this.level}`;
+    $('overlay-over').classList.remove('hidden');
+  }
+
+  _pickTarget(allowSame) {
+    let next = this.targetIndex;
+    const n = this.player.spots.length;
+    if (!allowSame) {
+      while (next === this.targetIndex) next = (Math.random() * n) | 0;
+    } else {
+      next = (Math.random() * n) | 0;
+    }
+    this.targetIndex = next;
+    this._placeMarker();
+    this._updateMoveHint();
+  }
+
+  _updateMoveHint() {
+    const hint = $('move-hint');
+    if (this.player.index === this.targetIndex) {
+      hint.textContent = 'SHOOT!';
+      hint.className = 'on-spot';
+    } else if (this.player.index < this.targetIndex) {
+      hint.textContent = 'Move ▶ to the glowing spot';
+      hint.className = '';
+    } else {
+      hint.textContent = '◀ Move to the glowing spot';
+      hint.className = '';
+    }
+  }
+
+  _banner(text, dur) {
+    const b = $('banner');
+    b.textContent = text;
+    b.classList.add('show');
+    this._bannerTimer = dur;
+  }
+
+  _popup(text, color) {
+    const p = $('popup');
+    p.textContent = text;
+    p.style.color = color;
+    p.classList.remove('show');
+    void p.offsetWidth; // restart animation
+    p.classList.add('show');
+  }
+
+  _refreshHUD() {
+    $('hud-level').textContent = this.level;
+    $('hud-score').textContent = this.score;
+    $('hud-lives').textContent = this.lives;
+    $('hud-makes').textContent = `${this.makes}/${this.required}`;
+    const pct = Math.min(1, this.makes / this.required) * 100;
+    $('progress-fill').style.width = pct + '%';
+  }
+
+  update(dt) {
+    // marker pulse
+    if (this.marker) {
+      const t = performance.now() * 0.004;
+      const k = 1 + Math.sin(t) * 0.12;
+      this.marker.scale.set(k, k, k);
+      const onSpot = this.player.index === this.targetIndex;
+      this.marker.material.color.setHex(onSpot ? 0x39ff9e : 0x39d0ff);
+      this.marker.material.emissive.setHex(onSpot ? 0x39ff9e : 0x39d0ff);
+    }
+
+    // charging meter ping-pong
+    if (this.state === 'charging') {
+      this.m += this.mDir * this.mSpeed * dt;
+      if (this.m >= 1) { this.m = 1; this.mDir = -1; }
+      else if (this.m <= 0) { this.m = 0; this.mDir = 1; }
+      this._updateMeterUI();
+    }
+
+    // banner fade
+    if (this._bannerTimer > 0) {
+      this._bannerTimer -= dt;
+      if (this._bannerTimer <= 0) $('banner').classList.remove('show');
+    }
+
+    // reset after a resolved shot
+    if (this.state === 'resetting') {
+      this._resetTimer -= dt;
+      if (this._resetTimer <= 0) {
+        this.ball.holdAtHands();
+        this.player.setPose(0);
+        this.state = 'ready';
+        this._updateMoveHint();
+      }
+    }
+
+    this.player.update(dt);
+    this.camera.updateMatrixWorld();
+    this.ball.update(dt, this.audio);
+  }
+
+  _updateMeterUI() {
+    $('meter-fill').style.height = (this.m * 100) + '%';
+    $('meter-indicator').style.bottom = (this.m * 100) + '%';
+    const zone = $('meter-zone');
+    zone.style.bottom = (50 - this.perfectTol * 100) + '%';
+    zone.style.height = (this.perfectTol * 200) + '%';
+  }
+}
