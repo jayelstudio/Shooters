@@ -78,7 +78,7 @@ export function buildArena(scene, renderer) {
   buildHoop(group);
 
   // ---- Stands / crowd + arena shell ----
-  buildCrowd(group);
+  buildCrowd(group, floorMat);
   buildLightRig(group);
 
   // ---- Lights ----
@@ -214,6 +214,7 @@ function buildNet() {
 
 // Candidate paths for the user-supplied arena photo (case-sensitive on most hosts).
 const CROWD_IMG_CANDIDATES = [
+  './shooters-arena.png', './IMG_0885.png',
   './game-arena.PNG', './game-arena.png',
   './arena.png', './arena.jpg', './assets/arena.png', './assets/arena.jpg',
 ];
@@ -225,14 +226,21 @@ const BACKDROP = {
   yCenter: 1.0,   // vertical center of the photo plane
   width: 96,      // ~native aspect (1854x848 -> 2.18) at this height
   height: 44,
-  brightness: 1.0,
-  toneMapped: true,
+  brightness: 1.25, // >1 brightens the crowd
+  toneMapped: false, // skip ACES so the photo keeps its full brightness
 };
+// Region of the photo (fractions) to sample as the tiling hardwood floor —
+// a clean foreground wood patch (no lines/logo). Tunable.
+const WOOD_CROP = { x: 0.08, y: 0.80, w: 0.16, h: 0.10 };
+const WOOD_TILES = 12;
 
-function buildCrowd(group) {
+function buildCrowd(group, floorMat) {
   loadFirstTexture(
     CROWD_IMG_CANDIDATES,
-    (tex) => buildArenaBackdrop(group, tex),
+    (tex) => {
+      buildArenaBackdrop(group, tex);
+      if (floorMat) applyPhotoFloor(floorMat, tex);
+    },
     () => buildProceduralStands(group)
   );
 }
@@ -284,6 +292,39 @@ function buildProceduralStands(group) {
   ceil.rotation.x = Math.PI / 2;
   ceil.position.y = 16;
   group.add(ceil);
+}
+
+// Sample a clean wood patch from the photo and tile it as the floor texture.
+function applyPhotoFloor(floorMat, tex) {
+  const wood = cropToCanvasTexture(tex, WOOD_CROP);
+  if (!wood) return;
+  wood.colorSpace = THREE.SRGBColorSpace;
+  wood.wrapS = wood.wrapT = THREE.RepeatWrapping;
+  wood.repeat.set(WOOD_TILES, WOOD_TILES);
+  wood.anisotropy = 8;
+  floorMat.map = wood;
+  floorMat.needsUpdate = true;
+}
+
+// Crop a fractional sub-rectangle of a texture's image onto a square canvas.
+function cropToCanvasTexture(tex, crop) {
+  const img = tex.image;
+  if (!img) return null;
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  const sx = Math.max(0, Math.floor(crop.x * iw));
+  const sy = Math.max(0, Math.floor(crop.y * ih));
+  const sw = Math.max(1, Math.floor(crop.w * iw));
+  const sh = Math.max(1, Math.floor(crop.h * ih));
+  const size = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  try {
+    c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, size, size);
+  } catch (e) {
+    return null;
+  }
+  return new THREE.CanvasTexture(c);
 }
 
 // Try each path in order; skip empty/invalid files; call onLoad with the first
