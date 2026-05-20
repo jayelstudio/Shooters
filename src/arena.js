@@ -212,11 +212,14 @@ function buildNet() {
   return net;
 }
 
-// Candidate paths/extensions for the user-supplied arena photo.
-const CROWD_IMG_CANDIDATES = ['./arena.png', './arena.jpg', './arena.jpeg', './assets/arena.png', './assets/arena.jpg'];
-// Sub-rectangle of the photo that is pure crowd (no court / no hoop), as
-// fractions of width/height. Tunable once you can see the result.
-const CROWD_CROP = { x: 0.05, y: 0.14, w: 0.22, h: 0.20 };
+// Candidate paths for the user-supplied arena photo (case-sensitive on most hosts).
+const CROWD_IMG_CANDIDATES = [
+  './game-arena.PNG', './game-arena.png',
+  './arena.png', './arena.jpg', './assets/arena.png', './assets/arena.jpg',
+];
+// Sub-rectangle of the photo that is pure crowd (no court / no hoop / no LED
+// ribbon), as fractions of width/height — a left-side seating block.
+const CROWD_CROP = { x: 0.06, y: 0.20, w: 0.24, h: 0.22 };
 
 function buildCrowd(group) {
   const procTex = crowdTexture();
@@ -273,7 +276,7 @@ function buildCrowd(group) {
       t.needsUpdate = true;
       m.material.map = t;
       m.material.emissiveMap = t;
-      m.material.emissiveIntensity = 0.95;
+      m.material.emissiveIntensity = 0.8;
       m.material.needsUpdate = true;
     }
   });
