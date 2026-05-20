@@ -1,3 +1,20 @@
+// A short silent WAV (base64). Looping it through an <audio> element flips iOS
+// Safari's audio session to "playback", so Web Audio plays through the speaker
+// even when the device's mute/silent toggle is on (otherwise it only routes to
+// headphones).
+const SILENT_WAV_B64 = 'UklGRiQZAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAZAAAA' + 'A'.repeat(8532);
+
+function silentWavUrl() {
+  try {
+    const bin = atob(SILENT_WAV_B64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+  } catch (e) {
+    return 'data:audio/wav;base64,' + SILENT_WAV_B64;
+  }
+}
+
 // All sound is synthesized at runtime via Web Audio — no asset files.
 export class AudioEngine {
   constructor() {
@@ -5,6 +22,7 @@ export class AudioEngine {
     this.master = null;
     this.crowdGain = null;
     this.enabled = true;
+    this._silentEl = null;
   }
 
   // Must be called from a user gesture (tap) to satisfy autoplay policies.
@@ -16,11 +34,35 @@ export class AudioEngine {
     this.master = this.ctx.createGain();
     this.master.gain.value = 0.9;
     this.master.connect(this.ctx.destination);
+    this._unlockSpeaker();
     this._startCrowd();
+  }
+
+  // Keep a silent looping <audio> element alive to route Web Audio to the
+  // speaker on iOS regardless of the mute switch.
+  _unlockSpeaker() {
+    try {
+      if (!this._silentEl) {
+        const el = new Audio(silentWavUrl());
+        el.loop = true;
+        el.preload = 'auto';
+        el.muted = false;
+        el.volume = 1;
+        el.setAttribute('playsinline', '');
+        el.setAttribute('webkit-playsinline', '');
+        this._silentEl = el;
+      }
+      const p = this._silentEl.play();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* ignore */ }
   }
 
   resume() {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    if (this._silentEl && this._silentEl.paused) {
+      const p = this._silentEl.play();
+      if (p && p.catch) p.catch(() => {});
+    }
   }
 
   _now() { return this.ctx.currentTime; }
