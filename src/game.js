@@ -70,13 +70,15 @@ export class Game {
       el.addEventListener('pointerleave', (e) => { if (e.buttons) { up && up(); } });
     };
 
-    press($('btn-shoot'),
-      () => this._startCharge(),
-      () => this._release());
+    const shootEl = $('btn-shoot');
+    press(shootEl,
+      () => { shootEl.classList.add('pressed'); shootEl.classList.remove('release'); this._startCharge(); },
+      () => { shootEl.classList.remove('pressed'); shootEl.classList.add('release'); this._release(); });
+    shootEl.addEventListener('animationend', () => shootEl.classList.remove('release'));
 
-    press($('btn-dribble'),
-      () => { if (this.state === 'ready') { this.ball.startDribble(); } },
-      () => this.ball.stopDribble());
+    $('btn-timeout').addEventListener('click', () => this.pause());
+    $('btn-continue').addEventListener('click', () => this.resumeGame());
+    $('btn-endgame').addEventListener('click', () => this.endGame());
 
     $('btn-left').addEventListener('pointerdown', (e) => { e.preventDefault(); this._move(-1); });
     $('btn-right').addEventListener('pointerdown', (e) => { e.preventDefault(); this._move(1); });
@@ -116,6 +118,50 @@ export class Game {
     this._banner(`Level ${this.level}`, 1.4);
   }
 
+  pause() {
+    if (['paused', 'over', 'idle'].includes(this.state)) return;
+    this._prevState = this.state;
+    this.state = 'paused';
+    $('meter').classList.remove('active');
+    $('dir-arrow').classList.add('hidden');
+    $('shoot-cue').classList.add('hidden');
+    $('btn-shoot').classList.remove('pressed');
+    $('overlay-pause').classList.remove('hidden');
+  }
+
+  resumeGame() {
+    if (this.state !== 'paused') return;
+    $('overlay-pause').classList.add('hidden');
+    // a charge in progress is cancelled — return the ball to the hands
+    if (this._prevState === 'charging') {
+      this.ball.holdAtHands();
+      this.player.setPose(0);
+      this.state = 'ready';
+    } else {
+      this.state = this._prevState || 'ready';
+    }
+  }
+
+  endGame() {
+    $('overlay-pause').classList.add('hidden');
+    this.state = 'idle';
+    this.level = 1;
+    this.score = 0;
+    this.lives = CONFIG.game.startLives;
+    this.makes = 0;
+    this.required = CONFIG.game.baseRequired;
+    this.streak = 0;
+    this.mSpeed = CONFIG.meter.baseSpeed;
+    this.perfectTol = CONFIG.meter.basePerfectTol;
+    this.ball.holdAtHands();
+    this.player.setPose(0);
+    $('meter').classList.remove('active');
+    $('dir-arrow').classList.add('hidden');
+    $('shoot-cue').classList.add('hidden');
+    this._refreshHUD();
+    $('overlay-start').classList.remove('hidden');
+  }
+
   _move(dir) {
     if (this.state !== 'ready') return;
     if (dir < 0) this.player.moveLeft(); else this.player.moveRight();
@@ -123,7 +169,6 @@ export class Game {
 
   _startCharge() {
     if (this.state !== 'ready' || !this.ball.isHeld()) return;
-    this.ball.stopDribble();
     this.state = 'charging';
     this.m = 0;
     this.mDir = 1;
@@ -281,6 +326,8 @@ export class Game {
   }
 
   update(dt) {
+    if (this.state === 'paused') return; // frozen while the time-out overlay is up
+
     // marker pulse
     if (this.marker) {
       const t = performance.now() * 0.004;

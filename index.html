@@ -49,13 +49,29 @@
       <button id="btn-left" class="ctl move">◀</button>
       <button id="btn-right" class="ctl move">▶</button>
     </div>
-    <button id="btn-dribble" class="ctl big dribble">DRIBBLE</button>
-    <button id="btn-shoot" class="ctl big shoot">SHOOT</button>
+    <button id="btn-timeout" class="ctl big timeout" aria-label="Timeout / pause">
+      <img src="./timeout-btn.svg" alt="Timeout" />
+    </button>
+    <button id="btn-shoot" class="ctl big shoot" aria-label="Shoot">
+      <img src="./bball.png" alt="Shoot" />
+    </button>
   </div>
 
   <!-- Overlays -->
   <div id="overlay-start" class="overlay splash" role="button" tabindex="0" aria-label="Tap to play">
     <img class="splash-img" src="./buckets-splash.png" alt="Buckets — Tap to play" />
+  </div>
+
+  <div id="overlay-pause" class="overlay hidden">
+    <div class="panel pause-panel">
+      <h2 class="pause-title">TIME OUT</h2>
+      <button id="btn-continue" class="img-btn" aria-label="Continue">
+        <img src="./continue-btn.svg" alt="Continue" />
+      </button>
+      <button id="btn-endgame" class="img-btn" aria-label="End game">
+        <img src="./end-game-btn.svg" alt="End game" />
+      </button>
+    </div>
   </div>
 
   <div id="overlay-over" class="overlay hidden">

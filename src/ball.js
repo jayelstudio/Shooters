@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import { ballTextures } from './materials.js';
 
-const STATE = { HELD: 'held', DRIBBLE: 'dribble', FLYING: 'flying', DEAD: 'dead' };
+const STATE = { HELD: 'held', FLYING: 'flying', DEAD: 'dead' };
 
 export class Ball {
   constructor(scene, player, audio) {
@@ -28,9 +28,6 @@ export class Ball {
     this.flightTime = 0;
     this.floorBounces = 0;
 
-    this._dribblePhase = 0;
-    this._wasLow = false;
-
     this.net = scene.getObjectByName('netMesh');
     this._netTimer = 0;
 
@@ -47,18 +44,7 @@ export class Ball {
     this.scored = false;
   }
 
-  startDribble() {
-    if (this.state === STATE.HELD) {
-      this.state = STATE.DRIBBLE;
-      this._dribblePhase = 0;
-    }
-  }
-
-  stopDribble() {
-    if (this.state === STATE.DRIBBLE) this.state = STATE.HELD;
-  }
-
-  isHeld() { return this.state === STATE.HELD || this.state === STATE.DRIBBLE; }
+  isHeld() { return this.state === STATE.HELD; }
   isLive() { return this.state === STATE.FLYING; }
 
   // Ideal launch speed for a clean swish from current release point.
@@ -109,10 +95,6 @@ export class Ball {
       this.mesh.rotation.x -= dt * 0.3;
       return;
     }
-    if (this.state === STATE.DRIBBLE) {
-      this._updateDribble(dt, audio);
-      return;
-    }
     if (this.state === STATE.FLYING) {
       this.flightTime += dt;
       const h = 1 / 240;
@@ -135,24 +117,6 @@ export class Ball {
         this.net.scale.y = 1 + k * 0.5;
       }
     }
-  }
-
-  _updateDribble(dt, audio) {
-    const target = new THREE.Vector3(0.16, -0.62, -0.55);
-    this.player.camera.localToWorld(target);
-    const handY = target.y;
-    const floorY = this.r;
-    const freq = 2.3;
-    this._dribblePhase += dt * freq * Math.PI;
-    const s = Math.abs(Math.sin(this._dribblePhase));
-    const y = floorY + (handY - floorY) * s;
-    this.pos.set(target.x, y, target.z);
-    this.mesh.position.copy(this.pos);
-    this.mesh.rotation.x += dt * 6;
-    // sound at the bottom of each bounce
-    const low = s < 0.06;
-    if (low && !this._wasLow) audio.dribble();
-    this._wasLow = low;
   }
 
   _integrate(h, audio) {
