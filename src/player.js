@@ -86,12 +86,12 @@ export class Player {
       // puffy rounded palm; back (with darts) faces +z, palm faces -z
       addTo(hand, palm, [0, 0, 0], null, [1.1, 0.95, 0.72]);
 
-      // four fingers, splayed and curling toward the ball
-      const fx = [-0.034, -0.011, 0.012, 0.035];
+      // four fingers, spread wide and curling toward the ball (wikiHow grip)
+      const fx = [-0.042, -0.014, 0.014, 0.042];
       for (let i = 0; i < 4; i++) {
-        const f = makeDigit(0.7);
-        f.position.set(fx[i], 0.05, 0.006);
-        f.rotation.set(-0.45, 0, -Math.sign(fx[i]) * 0.12);
+        const f = makeDigit(0.85);
+        f.position.set(fx[i], 0.048, 0.006);
+        f.rotation.set(-0.5, 0, -Math.sign(fx[i]) * (0.22 + Math.abs(i - 1.5) * 0.06));
         hand.add(f);
       }
 
@@ -124,31 +124,22 @@ export class Player {
     this._applyArmPose(0);
   }
 
-  // Left = guide glove on the ball's side (palm turned onto the ball).
-  // Right = shooting glove behind/under the ball, wrist cocked; both flow with
-  // the shot and snap through a follow-through (ft) on release.
+  // Both gloves grip the ball from the sides (palms turned onto it, fingers
+  // spread over the top, thumbs toward each other) per the reference grip.
+  // The right (shooting) hand snaps up/forward on release; the left peels off.
   _applyArmPose(p) {
     const ft = this.ft;
     const by = THREE.MathUtils.lerp(-0.38, -0.12, p);
     const bz = THREE.MathUtils.lerp(-0.71, -0.66, p);
+    const tiltOver = -0.35 - p * 0.1; // fingers tip back over the top of the ball
 
-    // guide hand: palm rotated ~45-60 deg onto the left side of the ball,
-    // then peels away/up as the shot releases
-    this.leftHand.position.set(
-      -0.12 - ft * 0.10,
-      by - 0.02 + p * 0.01 - ft * 0.04,
-      bz + 0.03
-    );
-    this.leftHand.rotation.set(-0.15 - p * 0.15, -0.95 - ft * 0.5, 0.18 + ft * 0.35);
+    // LEFT (guide) glove: grips the left side; peels away on release
+    this.leftHand.position.set(-0.12 - ft * 0.12, by - 0.02 - ft * 0.05, bz + 0.05);
+    this.leftHand.rotation.set(tiltOver, -1.15 - ft * 0.3, -0.08 + ft * 0.35);
 
-    // shooting hand: behind & under the ball with the wrist cocked back,
-    // then snaps up and forward (the gooseneck follow-through)
-    this.rightHand.position.set(
-      0.02,
-      by + 0.02 + p * 0.02 + ft * 0.14,
-      bz + 0.04 - ft * 0.06
-    );
-    this.rightHand.rotation.set(-1.25 - p * 0.15 + ft * 1.15, 0.0, 0.06);
+    // RIGHT (shooting) glove: grips the right side; gooseneck snap on release
+    this.rightHand.position.set(0.12, by - 0.02 + ft * 0.18, bz + 0.05 - ft * 0.07);
+    this.rightHand.rotation.set(tiltOver + ft * 1.25, 1.15 - ft * 0.35, 0.08 - ft * 0.2);
   }
 
   // Kick off the release follow-through (decays back to 0 in update()).
