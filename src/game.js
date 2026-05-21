@@ -321,8 +321,6 @@ export class Game {
     $('hud-score').textContent = this.score;
     $('hud-lives').textContent = this.lives;
     $('hud-makes').textContent = `${this.makes}/${this.required}`;
-    const pct = Math.min(1, this.makes / this.required) * 100;
-    $('progress-fill').style.width = pct + '%';
   }
 
   update(dt) {

@@ -28,20 +28,20 @@ html, body {
 }
 
 /* ---------- HUD ---------- */
-#hud {
+.hud-side {
   position: fixed;
-  top: calc(var(--safe-t) + 8px + 10vh);
-  left: 50%;
-  transform: translateX(-50%);
+  top: calc(var(--safe-t) + 8px);
   display: flex;
   gap: 6px;
   z-index: 10;
 }
+.hud-left { left: calc(env(safe-area-inset-left, 0px) + 10px); }
+.hud-right { right: calc(env(safe-area-inset-right, 0px) + 10px); }
 .hud-cell {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 64px;
+  min-width: 58px;
   padding: 6px 10px;
   background: rgba(0, 0, 0, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -60,25 +60,10 @@ html, body {
   font-weight: 700;
   letter-spacing: 1px;
 }
-
-#progress {
-  position: fixed;
-  top: calc(var(--safe-t) + 64px + 10vh);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 60%;
-  max-width: 320px;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 99px;
-  overflow: hidden;
-  z-index: 10;
-}
-#progress-fill {
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, #39d0ff, #39ff9e);
-  transition: width 0.3s ease;
+/* makes count: orange + glow doubles as the progress indicator */
+#hud-makes {
+  color: #ff7a18;
+  text-shadow: 0 0 12px rgba(255, 122, 24, 0.9), 0 0 4px rgba(255, 122, 24, 0.7);
 }
 
 /* Directional cue: bright orange arrow beside the backboard (positioned in JS) */
@@ -249,7 +234,7 @@ html, body {
   -webkit-user-drag: none;
 }
 
-/* Timeout / pause button (white icon on a round translucent base) */
+/* Timeout / pause button (just the white icon, no background) */
 .ctl.timeout {
   left: calc(env(safe-area-inset-left, 0px) + 18px);
   width: 92px;
@@ -257,16 +242,17 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 35% 30%, rgba(58, 77, 110, 0.9), rgba(27, 39, 64, 0.9));
-  border: 2px solid rgba(255, 255, 255, 0.22);
+  background: none;
+  border: none;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.6));
 }
-.ctl.timeout img { width: 50%; height: 50%; }
+.ctl.timeout img { width: 72%; height: 72%; }
 
 /* Shoot button — the basketball graphic itself */
 .ctl.shoot {
   right: calc(env(safe-area-inset-right, 0px) + 18px);
-  width: 140px;
-  height: 140px;
+  width: 105px;
+  height: 105px;
   border: none;
   filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
 }
@@ -401,8 +387,9 @@ html, body {
 
 /* small-height landscape phones: shrink controls a touch */
 @media (max-height: 480px) {
-  .ctl.big { width: 96px; height: 96px; font-size: 14px; }
-  .ctl.shoot { width: 110px; height: 110px; }
+  .ctl.big { width: 96px; height: 96px; }
+  .ctl.shoot { width: 82px; height: 82px; }
+  .ctl.timeout { width: 72px; height: 72px; }
   #meter { height: 150px; bottom: calc(var(--safe-b) + 110px); }
   .move-row { bottom: calc(var(--safe-b) + 110px); }
 }

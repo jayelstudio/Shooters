@@ -22,14 +22,15 @@
 <body>
   <canvas id="scene"></canvas>
 
-  <!-- HUD -->
-  <div id="hud">
+  <!-- HUD (split to the top corners so the ball's arc stays clear) -->
+  <div class="hud-side hud-left">
     <div class="hud-cell"><span class="hud-label">LEVEL</span><span id="hud-level">1</span></div>
     <div class="hud-cell"><span class="hud-label">SCORE</span><span id="hud-score">0</span></div>
+  </div>
+  <div class="hud-side hud-right">
     <div class="hud-cell"><span class="hud-label">MAKES</span><span id="hud-makes">0/3</span></div>
     <div class="hud-cell"><span class="hud-label">LIVES</span><span id="hud-lives">5</span></div>
   </div>
-  <div id="progress"><div id="progress-fill"></div></div>
 
   <div id="dir-arrow" class="hidden"></div>
   <div id="shoot-cue" class="hidden">SHOOT!</div>
