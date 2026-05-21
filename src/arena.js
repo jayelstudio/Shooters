@@ -213,11 +213,7 @@ function buildNet() {
 }
 
 // Candidate paths for the user-supplied arena photo (case-sensitive on most hosts).
-const CROWD_IMG_CANDIDATES = [
-  './shooters-arena.png', './IMG_0885.png',
-  './game-arena.PNG', './game-arena.png',
-  './arena.png', './arena.jpg', './assets/arena.png', './assets/arena.jpg',
-];
+const CROWD_IMG_CANDIDATES = ['./buckets-arena.jpg', './buckets-arena.png'];
 // Full-photo backdrop placed behind the basket. In portrait the horizontal view
 // is narrow, so one flat plane fills the whole back of the arena with no
 // repetition or distortion. Tunable from a screenshot.

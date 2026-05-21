@@ -44,6 +44,8 @@ export class Player {
 
     const skin = new THREE.MeshToonMaterial({ color: 0xf3b78c, gradientMap: gradient });
     const outline = new THREE.MeshBasicMaterial({ color: 0x2b1a10, side: THREE.BackSide });
+    const shineMat = new THREE.MeshBasicMaterial({ color: 0xffe3c6, toneMapped: false });
+    const creaseMat = new THREE.MeshBasicMaterial({ color: 0xb9794f, toneMapped: false });
     const OUTLINE = 1.2;
 
     const makeHand = (side) => {
@@ -78,6 +80,22 @@ export class Player {
       add(thumb, [0, 0.0, 0.05], [0.9, 0, side * 0.45]);
       // thin child forearm receding down and toward the camera
       add(fore, [0, -0.2, 0.06], [0.32, 0, 0]);
+
+      // --- flat cartoon details on the back of the hand (no outline) ---
+      const detail = (geo, mat, pos, rot, scale) => {
+        const m = new THREE.Mesh(geo, mat);
+        m.position.set(pos[0], pos[1], pos[2]);
+        if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
+        if (scale) m.scale.set(scale[0], scale[1], scale[2]);
+        hand.add(m);
+      };
+      const bx = side * 0.032; // back-of-hand surface that faces the camera
+      const knuckle = new THREE.SphereGeometry(0.011, 10, 8);
+      for (let i = 0; i < 4; i++) detail(knuckle, skin, [bx, 0.052, -0.027 + i * 0.018]);
+      // knuckle crease across the back of the hand
+      detail(new THREE.CapsuleGeometry(0.004, 0.05, 4, 8), creaseMat, [bx, 0.04, 0], [Math.PI / 2, 0, 0]);
+      // flat illustrated highlight
+      detail(new THREE.SphereGeometry(0.02, 12, 10), shineMat, [bx + side * 0.002, 0.01, 0.008], null, [0.25, 0.95, 0.7]);
 
       return hand;
     };
