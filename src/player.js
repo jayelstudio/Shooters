@@ -25,9 +25,10 @@ export class Player {
     camera.add(this.arms);
     this._buildArms();
 
-    // pose: 0 = rest/dribble-ready, 1 = fully raised (release follow-through)
+    // pose: 0 = rest, 1 = raised set point. ft: follow-through snap (1 -> 0 after release)
     this.pose = 0;
     this.targetPose = 0;
+    this.ft = 0;
 
     const s = this.spots[this.index];
     camera.position.set(s.x, s.y, s.z);
@@ -47,48 +48,73 @@ export class Player {
     const dartMat = new THREE.MeshBasicMaterial({ color: 0x111111, toneMapped: false });
     const OUTLINE = 1.16;
 
+    // a mesh drawn twice (white toon + slightly larger dark back-face shell = outline)
+    const addTo = (parent, geo, pos, rot, scale) => {
+      const m = new THREE.Mesh(geo, glove);
+      if (pos) m.position.set(pos[0], pos[1], pos[2]);
+      if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
+      if (scale) m.scale.set(scale[0], scale[1], scale[2]);
+      m.castShadow = true;
+      parent.add(m);
+      const o = new THREE.Mesh(geo, outline);
+      o.position.copy(m.position);
+      o.rotation.copy(m.rotation);
+      o.scale.copy(m.scale).multiplyScalar(OUTLINE);
+      parent.add(o);
+    };
+
+    const fProx = new THREE.CapsuleGeometry(0.019, 0.026, 6, 12);
+    const fDist = new THREE.CapsuleGeometry(0.017, 0.02, 6, 12);
+
+    // a two-segment digit that curls toward the palm (-z) so it wraps the ball
+    const makeDigit = (curl) => {
+      const f = new THREE.Group();
+      addTo(f, fProx, [0, 0.02, 0]);
+      const tip = new THREE.Group();
+      tip.position.set(0, 0.04, 0);
+      tip.rotation.x = -curl; // bend at the knuckle toward the palm
+      addTo(tip, fDist, [0, 0.016, 0]);
+      f.add(tip);
+      return f;
+    };
+
     const makeGlove = (side) => {
       const hand = new THREE.Group();
-      // glove part: drawn twice (white toon + slightly larger dark shell for the outline)
-      const add = (geo, pos, rot, scale) => {
-        const m = new THREE.Mesh(geo, glove);
-        m.position.set(pos[0], pos[1], pos[2]);
-        if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
-        if (scale) m.scale.set(scale[0], scale[1], scale[2]);
-        m.castShadow = true;
-        hand.add(m);
-        const o = new THREE.Mesh(geo, outline);
-        o.position.copy(m.position);
-        o.rotation.copy(m.rotation);
-        o.scale.copy(m.scale).multiplyScalar(OUTLINE);
-        hand.add(o);
-      };
-      const dart = (geo, pos, rot) => {
-        const m = new THREE.Mesh(geo, dartMat);
-        m.position.set(pos[0], pos[1], pos[2]);
-        if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
-        hand.add(m);
-      };
-
       const palm = new THREE.SphereGeometry(0.058, 16, 12);
-      const finger = new THREE.CapsuleGeometry(0.02, 0.045, 6, 12);
-      const thumbG = new THREE.CapsuleGeometry(0.022, 0.036, 6, 12);
-      const cuff = new THREE.CylinderGeometry(0.052, 0.052, 0.03, 16);
+      const cuff = new THREE.CylinderGeometry(0.05, 0.05, 0.03, 16);
 
-      // puffy rounded palm (back faces +z), four fat fingers, fat thumb
-      add(palm, [0, 0, 0], null, [1.1, 0.95, 0.72]);
-      const fx = [-0.036, -0.012, 0.012, 0.036];
-      for (let i = 0; i < 4; i++) add(finger, [fx[i], 0.078, 0], [0, 0, -Math.sign(fx[i]) * 0.12]);
-      add(thumbG, [-side * 0.05, 0.01, 0.012], [0.2, 0, side * 0.9]);
+      // puffy rounded palm; back (with darts) faces +z, palm faces -z
+      addTo(hand, palm, [0, 0, 0], null, [1.1, 0.95, 0.72]);
+
+      // four fingers, splayed and curling toward the ball
+      const fx = [-0.034, -0.011, 0.012, 0.035];
+      for (let i = 0; i < 4; i++) {
+        const f = makeDigit(0.7);
+        f.position.set(fx[i], 0.05, 0.006);
+        f.rotation.set(-0.45, 0, -Math.sign(fx[i]) * 0.12);
+        hand.add(f);
+      }
+
+      // thumb (also a curling digit) on the inner side
+      const thumb = makeDigit(0.55);
+      thumb.scale.set(1.15, 0.9, 1.15);
+      thumb.position.set(-side * 0.05, -0.005, 0.012);
+      thumb.rotation.set(-0.25, 0, side * 1.05);
+      hand.add(thumb);
+
       // rolled cuff at the wrist
-      add(cuff, [0, -0.062, 0], null, null);
+      addTo(hand, cuff, [0, -0.062, 0]);
 
       // three black darts on the back of the hand
       const dgeo = new THREE.CapsuleGeometry(0.0045, 0.024, 4, 8);
       const dx = [-0.02, 0, 0.02];
       const dz = [0.22, 0, -0.22];
-      for (let i = 0; i < 3; i++) dart(dgeo, [dx[i], 0.014, 0.045], [0, 0, dz[i]]);
-
+      for (let i = 0; i < 3; i++) {
+        const m = new THREE.Mesh(dgeo, dartMat);
+        m.position.set(dx[i], 0.014, 0.045);
+        m.rotation.set(0, 0, dz[i]);
+        hand.add(m);
+      }
       return hand;
     };
 
@@ -98,17 +124,35 @@ export class Player {
     this._applyArmPose(0);
   }
 
-  // Left glove cups the ball from the side; right glove rests on top of it.
+  // Left = guide glove on the ball's side (palm turned onto the ball).
+  // Right = shooting glove behind/under the ball, wrist cocked; both flow with
+  // the shot and snap through a follow-through (ft) on release.
   _applyArmPose(p) {
+    const ft = this.ft;
     const by = THREE.MathUtils.lerp(-0.38, -0.12, p);
     const bz = THREE.MathUtils.lerp(-0.71, -0.66, p);
-    // left: beside the ball, fingers up (stays put)
-    this.leftHand.position.set(-0.12, by - 0.03, bz + 0.04);
-    this.leftHand.rotation.set(-0.1 - p * 0.3, -0.18, 0);
-    // right: on top of the ball, fingers draping over the far side
-    this.rightHand.position.set(0.01, by + 0.11, bz - 0.01);
-    this.rightHand.rotation.set(-1.95 - p * 0.1, 0.0, 0.12);
+
+    // guide hand: palm rotated ~45-60 deg onto the left side of the ball,
+    // then peels away/up as the shot releases
+    this.leftHand.position.set(
+      -0.12 - ft * 0.10,
+      by - 0.02 + p * 0.01 - ft * 0.04,
+      bz + 0.03
+    );
+    this.leftHand.rotation.set(-0.15 - p * 0.15, -0.95 - ft * 0.5, 0.18 + ft * 0.35);
+
+    // shooting hand: behind & under the ball with the wrist cocked back,
+    // then snaps up and forward (the gooseneck follow-through)
+    this.rightHand.position.set(
+      0.02,
+      by + 0.02 + p * 0.02 + ft * 0.14,
+      bz + 0.04 - ft * 0.06
+    );
+    this.rightHand.rotation.set(-1.25 - p * 0.15 + ft * 1.15, 0.0, 0.06);
   }
+
+  // Kick off the release follow-through (decays back to 0 in update()).
+  startFollowThrough() { this.ft = 1; }
 
   // World-space point where the ball sits in the hands, given pose p.
   handBallPosition(p, out = new THREE.Vector3()) {
@@ -140,8 +184,9 @@ export class Player {
     this.camera.position.lerp(this.target, 1 - Math.pow(0.0008, dt));
     this.camera.lookAt(this.lookTarget);
 
-    // smooth arm pose
+    // smooth arm pose + decaying follow-through snap
     this.pose += (this.targetPose - this.pose) * (1 - Math.pow(0.0001, dt));
+    if (this.ft > 0) this.ft = Math.max(0, this.ft - dt * 2.4);
     this._applyArmPose(this.pose);
   }
 }

@@ -198,6 +198,7 @@ export class Game {
     this.lastPerfect = perfect;
     this.lastFromTarget = this.player.index === this.targetIndex;
     this.ball.shoot(factor, lateral);
+    this.player.startFollowThrough();
   }
 
   _onMake() {
