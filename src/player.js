@@ -49,47 +49,29 @@ export class Player {
       parent.add(m);
     };
 
-    const fProx = new THREE.CapsuleGeometry(0.019, 0.026, 6, 12);
-    const fDist = new THREE.CapsuleGeometry(0.017, 0.02, 6, 12);
-
-    // a two-segment digit that curls toward the palm (-z) so it wraps the ball
-    const makeDigit = (curl) => {
-      const f = new THREE.Group();
-      addTo(f, fProx, [0, 0.02, 0]);
-      const tip = new THREE.Group();
-      tip.position.set(0, 0.04, 0);
-      tip.rotation.x = -curl; // bend at the knuckle toward the palm
-      addTo(tip, fDist, [0, 0.016, 0]);
-      f.add(tip);
-      return f;
-    };
-
     const makeGlove = (side) => {
       const hand = new THREE.Group();
-      const palm = new THREE.SphereGeometry(0.058, 16, 12);
-      const cuff = new THREE.CylinderGeometry(0.05, 0.05, 0.03, 16);
+      const palm = new THREE.SphereGeometry(0.066, 20, 16);
+      const fingerGeo = new THREE.CapsuleGeometry(0.023, 0.05, 8, 16);
+      const cuffGeo = new THREE.SphereGeometry(0.055, 16, 12);
 
-      // puffy rounded palm; back (with darts) faces +z, palm faces -z
-      addTo(hand, palm, [0, 0, 0], null, [1.1, 0.95, 0.72]);
+      // rounded mitten palm (back +z faces camera, palm -z toward ball)
+      addTo(hand, palm, [0, 0, 0], null, [1.18, 1.0, 0.8]);
 
-      // four fingers, spread wide and lying along the ball's surface (gentle cup)
-      const fx = [-0.042, -0.014, 0.014, 0.042];
+      // four smooth fingers, close together with their bases sunk into the palm
+      // so they read as one connected glove (small grooves between them)
+      const fx = [-0.039, -0.013, 0.013, 0.039];
       for (let i = 0; i < 4; i++) {
-        const f = makeDigit(0.38);
-        f.position.set(fx[i], 0.048, 0.006);
-        f.rotation.set(-0.18, 0, -Math.sign(fx[i]) * (0.22 + Math.abs(i - 1.5) * 0.06));
-        hand.add(f);
+        addTo(hand, fingerGeo, [fx[i], 0.07, 0.004],
+          [-0.2, 0, -Math.sign(fx[i]) * (0.14 + Math.abs(i - 1.5) * 0.05)],
+          [0.92, 1.0, 0.92]);
       }
 
-      // thumb (also a curling digit) on the inner side
-      const thumb = makeDigit(0.35);
-      thumb.scale.set(1.15, 0.9, 1.15);
-      thumb.position.set(-side * 0.05, -0.005, 0.012);
-      thumb.rotation.set(-0.12, 0, side * 1.05);
-      hand.add(thumb);
+      // thumb sunk into the inner side of the palm
+      addTo(hand, fingerGeo, [-side * 0.055, 0.006, 0.02], [0.15, 0, side * 1.15], [1.0, 0.82, 1.0]);
 
-      // rolled cuff at the wrist
-      addTo(hand, cuff, [0, -0.062, 0]);
+      // rounded cuff blended into the wrist
+      addTo(hand, cuffGeo, [0, -0.058, -0.004], null, [1.08, 0.62, 0.96]);
 
       // three black darts on the back of the hand
       const dgeo = new THREE.CapsuleGeometry(0.0045, 0.024, 4, 8);
@@ -97,7 +79,7 @@ export class Player {
       const dz = [0.22, 0, -0.22];
       for (let i = 0; i < 3; i++) {
         const m = new THREE.Mesh(dgeo, dartMat);
-        m.position.set(dx[i], 0.014, 0.045);
+        m.position.set(dx[i], 0.014, 0.046);
         m.rotation.set(0, 0, dz[i]);
         hand.add(m);
       }
