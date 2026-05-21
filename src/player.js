@@ -86,20 +86,20 @@ export class Player {
       // puffy rounded palm; back (with darts) faces +z, palm faces -z
       addTo(hand, palm, [0, 0, 0], null, [1.1, 0.95, 0.72]);
 
-      // four fingers, spread wide and curling toward the ball (wikiHow grip)
+      // four fingers, spread wide and lying along the ball's surface (gentle cup)
       const fx = [-0.042, -0.014, 0.014, 0.042];
       for (let i = 0; i < 4; i++) {
-        const f = makeDigit(0.85);
+        const f = makeDigit(0.38);
         f.position.set(fx[i], 0.048, 0.006);
-        f.rotation.set(-0.5, 0, -Math.sign(fx[i]) * (0.22 + Math.abs(i - 1.5) * 0.06));
+        f.rotation.set(-0.18, 0, -Math.sign(fx[i]) * (0.22 + Math.abs(i - 1.5) * 0.06));
         hand.add(f);
       }
 
       // thumb (also a curling digit) on the inner side
-      const thumb = makeDigit(0.55);
+      const thumb = makeDigit(0.35);
       thumb.scale.set(1.15, 0.9, 1.15);
       thumb.position.set(-side * 0.05, -0.005, 0.012);
-      thumb.rotation.set(-0.25, 0, side * 1.05);
+      thumb.rotation.set(-0.12, 0, side * 1.05);
       hand.add(thumb);
 
       // rolled cuff at the wrist
@@ -120,6 +120,8 @@ export class Player {
 
     this.leftHand = makeGlove(-1);
     this.rightHand = makeGlove(1);
+    this.leftHand.scale.setScalar(0.8);  // 20% smaller
+    this.rightHand.scale.setScalar(0.8);
     this.arms.add(this.leftHand, this.rightHand);
     this._applyArmPose(0);
   }
@@ -137,10 +139,10 @@ export class Player {
     this.leftHand.position.set(-0.12 - ft * 0.12, by - 0.02 - ft * 0.05, bz + 0.05);
     this.leftHand.rotation.set(tiltOver, -1.15 - ft * 0.3, -0.08 + ft * 0.35);
 
-    // RIGHT (shooting) glove: palm resting on the front-center of the ball
-    // (back of the hand toward the camera); gooseneck snap up/forward on release
-    this.rightHand.position.set(0.045, by - 0.03 + ft * 0.20, bz + 0.15 - ft * 0.04);
-    this.rightHand.rotation.set(tiltOver + ft * 1.2, 0.4 - ft * 0.4, 0.05 - ft * 0.2);
+    // RIGHT (shooting) glove: palm resting on the front-center of the ball,
+    // wrist rotated back a touch; gooseneck snap up/forward on release
+    this.rightHand.position.set(0.045, by - 0.03 + ft * 0.20, bz + 0.155 - ft * 0.04);
+    this.rightHand.rotation.set(tiltOver + 0.22 + ft * 1.2, 0.4 - ft * 0.4, 0.05 - ft * 0.2);
   }
 
   // Kick off the release follow-through (decays back to 0 in update()).
