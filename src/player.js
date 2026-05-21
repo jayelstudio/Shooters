@@ -137,9 +137,10 @@ export class Player {
     this.leftHand.position.set(-0.12 - ft * 0.12, by - 0.02 - ft * 0.05, bz + 0.05);
     this.leftHand.rotation.set(tiltOver, -1.15 - ft * 0.3, -0.08 + ft * 0.35);
 
-    // RIGHT (shooting) glove: grips the right side; gooseneck snap on release
-    this.rightHand.position.set(0.095, by - 0.02 + ft * 0.18, bz + 0.065 - ft * 0.07);
-    this.rightHand.rotation.set(tiltOver + ft * 1.25, 1.0 - ft * 0.35, 0.08 - ft * 0.2);
+    // RIGHT (shooting) glove: palm resting on the front-center of the ball
+    // (back of the hand toward the camera); gooseneck snap up/forward on release
+    this.rightHand.position.set(0.045, by - 0.03 + ft * 0.20, bz + 0.15 - ft * 0.04);
+    this.rightHand.rotation.set(tiltOver + ft * 1.2, 0.4 - ft * 0.4, 0.05 - ft * 0.2);
   }
 
   // Kick off the release follow-through (decays back to 0 in update()).
