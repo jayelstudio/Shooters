@@ -1,0 +1,11 @@
+Model Information:
+* title:	Cartoon hands
+* source:	https://sketchfab.com/3d-models/cartoon-hands-44ecdca69ca84193bd975b7a31ecc8de
+* author:	teddyleeg (https://sketchfab.com/teddyleeg)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Cartoon hands" (https://sketchfab.com/3d-models/cartoon-hands-44ecdca69ca84193bd975b7a31ecc8de) by teddyleeg (https://sketchfab.com/teddyleeg) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
