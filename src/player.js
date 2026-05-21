@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { CONFIG, D2R } from './config.js';
 
+// Rigged glTF hands (no baked animation -> moved as a whole). Tunable.
+const HAND_MODEL_URL = './8.glb';
+const HAND_MODEL_SCALE = 0.5;          // target max dimension in world units
+const HAND_MODEL_ROT = [0, 0, 0];      // orientation tuning (radians)
+const HAND_MODEL_OFFSET = [0, -0.05, 0.05]; // offset from the ball center
+
 // Computes the 5 shooting-spot positions along the 3pt arc.
 export function buildSpots() {
   const { rim, spotRadius, spotAnglesDeg, eyeHeight } = CONFIG;
@@ -29,6 +35,8 @@ export class Player {
     this.pose = 0;
     this.targetPose = 0;
     this.ft = 0;
+    this.useModel = false;
+    this._loadHandModel();
 
     const s = this.spots[this.index];
     camera.position.set(s.x, s.y, s.z);
@@ -112,6 +120,18 @@ export class Player {
     const ft = this.ft;
     const by = THREE.MathUtils.lerp(-0.38, -0.12, p);
     const bz = THREE.MathUtils.lerp(-0.71, -0.66, p);
+
+    // Rigged glTF hands: move the whole model with the shot (no finger flex).
+    if (this.useModel && this.handsModel) {
+      this.handsModel.position.set(
+        HAND_MODEL_OFFSET[0],
+        by + HAND_MODEL_OFFSET[1] + ft * 0.18,
+        bz + HAND_MODEL_OFFSET[2] - ft * 0.05
+      );
+      this.handsModel.rotation.set(HAND_MODEL_ROT[0] + ft * 0.5, HAND_MODEL_ROT[1], HAND_MODEL_ROT[2]);
+      return;
+    }
+
     const tiltOver = -0.35 - p * 0.1; // fingers tip back over the top of the ball
 
     // LEFT (guide) glove: grips the left side; peels away on release
@@ -126,6 +146,33 @@ export class Player {
 
   // Kick off the release follow-through (decays back to 0 in update()).
   startFollowThrough() { this.ft = 1; }
+
+  // Load the rigged glTF hands; on success swap out the procedural gloves.
+  async _loadHandModel() {
+    try {
+      const { GLTFLoader } = await import(
+        'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/loaders/GLTFLoader.js'
+      );
+      const gltf = await new GLTFLoader().loadAsync(HAND_MODEL_URL);
+      const model = gltf.scene;
+      const box = new THREE.Box3().setFromObject(model);
+      const size = new THREE.Vector3(); box.getSize(size);
+      const center = new THREE.Vector3(); box.getCenter(center);
+      model.position.sub(center);
+      model.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+      const wrap = new THREE.Group();
+      wrap.add(model);
+      wrap.scale.setScalar(HAND_MODEL_SCALE / Math.max(size.x, size.y, size.z));
+
+      this.arms.remove(this.leftHand, this.rightHand);
+      this.handsModel = wrap;
+      this.arms.add(wrap);
+      this.useModel = true;
+      this._applyArmPose(this.pose);
+    } catch (e) {
+      console.warn('Hand model load failed; keeping procedural gloves.', e);
+    }
+  }
 
   // World-space point where the ball sits in the hands, given pose p.
   handBallPosition(p, out = new THREE.Vector3()) {
