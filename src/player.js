@@ -35,45 +35,50 @@ export class Player {
   }
 
   _buildArms() {
-    // Small, chubby child hands: short fingers, soft round palms.
-    const skin = new THREE.MeshStandardMaterial({ color: 0xe7af89, roughness: 0.82, metalness: 0 });
+    // Cartoon look: flat cel shading + bold dark outlines (inverted hull),
+    // with soft rounded forms for chubby child hands.
+    const ramp = new Uint8Array([70, 140, 235, 255]); // 4-band toon ramp
+    const gradient = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
+    gradient.needsUpdate = true;
+    gradient.minFilter = gradient.magFilter = THREE.NearestFilter;
+
+    const skin = new THREE.MeshToonMaterial({ color: 0xf3b78c, gradientMap: gradient });
+    const outline = new THREE.MeshBasicMaterial({ color: 0x2b1a10, side: THREE.BackSide });
+    const OUTLINE = 1.2;
 
     const makeHand = (side) => {
       const hand = new THREE.Group();
+      // each part is drawn twice: cel-shaded skin + a slightly larger dark shell
+      const add = (geo, pos, rot, scale) => {
+        const m = new THREE.Mesh(geo, skin);
+        m.position.set(pos[0], pos[1], pos[2]);
+        if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
+        if (scale) m.scale.set(scale[0], scale[1], scale[2]);
+        m.castShadow = true;
+        hand.add(m);
+        const o = new THREE.Mesh(geo, outline);
+        o.position.copy(m.position);
+        o.rotation.copy(m.rotation);
+        o.scale.copy(m.scale).multiplyScalar(OUTLINE);
+        hand.add(o);
+      };
 
-      // palm — thin slab whose wide face turns inward toward the ball
-      const palm = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.085, 0.078), skin);
-      hand.add(palm);
+      const ball = new THREE.SphereGeometry(0.05, 16, 12);
+      const finger = new THREE.CapsuleGeometry(0.016, 0.026, 6, 12);
+      const thumb = new THREE.CapsuleGeometry(0.018, 0.02, 6, 12);
+      const fore = new THREE.CapsuleGeometry(0.034, 0.24, 8, 14);
 
-      // soft heel of the palm (chubby)
-      const heel = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10), skin);
-      heel.scale.set(0.46, 0.62, 1.0);
-      heel.position.set(0, -0.03, 0);
-      hand.add(heel);
-
-      // four short, fat fingers spread across the top of the palm
+      // rounded palm (thin in x, tall in y, wide in z), facing inward
+      add(ball, [0, 0, 0], null, [0.6, 1.2, 1.0]);
+      // four short chubby fingers curling inward over the ball
       for (let i = 0; i < 4; i++) {
-        const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.014, 0.03, 4, 8), skin);
-        f.position.set(0, 0.07, -0.027 + i * 0.018);
-        f.rotation.z = side * 0.5;   // curl inward, over the ball
-        f.rotation.x = -0.25;        // drape over the top
-        hand.add(f);
+        add(finger, [0, 0.072, -0.027 + i * 0.018], [-0.2, 0, side * 0.5]);
       }
-
-      // stubby thumb on the near side of the palm
-      const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.016, 0.026, 4, 8), skin);
-      thumb.position.set(0, 0.0, 0.047);
-      thumb.rotation.x = 0.9;
-      thumb.rotation.z = side * 0.4;
-      hand.add(thumb);
-
+      // stubby thumb on the near side
+      add(thumb, [0, 0.0, 0.05], [0.9, 0, side * 0.45]);
       // thin child forearm receding down and toward the camera
-      const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.26, 6, 12), skin);
-      fore.position.set(0, -0.2, 0.06);
-      fore.rotation.x = 0.32;
-      hand.add(fore);
+      add(fore, [0, -0.2, 0.06], [0.32, 0, 0]);
 
-      hand.traverse((o) => { if (o.isMesh) o.castShadow = true; });
       return hand;
     };
 
