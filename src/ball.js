@@ -54,7 +54,12 @@ export class Ball {
       const { GLTFLoader } = await import(
         'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/loaders/GLTFLoader.js'
       );
-      const gltf = await new GLTFLoader().loadAsync('./basketball.gltf');
+      const loader = new GLTFLoader();
+      let gltf = null;
+      for (const url of ['./basketball.glb', './basketball.gltf']) {
+        try { gltf = await loader.loadAsync(url); break; } catch (e) { /* try next */ }
+      }
+      if (!gltf) throw new Error('no basketball model found');
       const model = gltf.scene;
 
       const box = new THREE.Box3().setFromObject(model);

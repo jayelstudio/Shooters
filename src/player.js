@@ -49,29 +49,40 @@ export class Player {
       parent.add(m);
     };
 
+    // a tapered finger: rounded base + cone + rounded tip (tip thinner than base)
+    const makeFinger = (rBase, rTip, len) => {
+      const f = new THREE.Group();
+      addTo(f, new THREE.CylinderGeometry(rTip, rBase, len, 14, 1), [0, len / 2, 0]);
+      addTo(f, new THREE.SphereGeometry(rTip, 12, 10), [0, len, 0]);
+      addTo(f, new THREE.SphereGeometry(rBase, 12, 10), [0, 0, 0]);
+      return f;
+    };
+
     const makeGlove = (side) => {
       const hand = new THREE.Group();
-      const palm = new THREE.SphereGeometry(0.066, 20, 16);
-      const fingerGeo = new THREE.CapsuleGeometry(0.023, 0.05, 8, 16);
-      const cuffGeo = new THREE.SphereGeometry(0.055, 16, 12);
+      const palm = new THREE.SphereGeometry(0.06, 20, 16);
+      const cuffGeo = new THREE.SphereGeometry(0.05, 16, 12);
 
-      // rounded mitten palm (back +z faces camera, palm -z toward ball)
-      addTo(hand, palm, [0, 0, 0], null, [1.18, 1.0, 0.8]);
+      // slimmer rounded palm (back +z faces camera, palm -z toward ball)
+      addTo(hand, palm, [0, 0, 0], null, [1.08, 0.98, 0.6]);
 
-      // four smooth fingers, close together with their bases sunk into the palm
-      // so they read as one connected glove (small grooves between them)
-      const fx = [-0.039, -0.013, 0.013, 0.039];
+      // four slim, tapered fingers, bases sunk into the palm so they connect
+      const fx = [-0.034, -0.011, 0.011, 0.034];
       for (let i = 0; i < 4; i++) {
-        addTo(hand, fingerGeo, [fx[i], 0.07, 0.004],
-          [-0.2, 0, -Math.sign(fx[i]) * (0.14 + Math.abs(i - 1.5) * 0.05)],
-          [0.92, 1.0, 0.92]);
+        const f = makeFinger(0.0165, 0.0105, 0.088);
+        f.position.set(fx[i], 0.05, 0.004);
+        f.rotation.set(-0.2, 0, -Math.sign(fx[i]) * (0.14 + Math.abs(i - 1.5) * 0.05));
+        hand.add(f);
       }
 
-      // thumb sunk into the inner side of the palm
-      addTo(hand, fingerGeo, [-side * 0.055, 0.006, 0.02], [0.15, 0, side * 1.15], [1.0, 0.82, 1.0]);
+      // tapered thumb sunk into the inner side of the palm
+      const thumb = makeFinger(0.019, 0.012, 0.058);
+      thumb.position.set(-side * 0.048, 0.004, 0.02);
+      thumb.rotation.set(0.15, 0, side * 1.15);
+      hand.add(thumb);
 
-      // rounded cuff blended into the wrist
-      addTo(hand, cuffGeo, [0, -0.058, -0.004], null, [1.08, 0.62, 0.96]);
+      // slim rounded cuff blended into the wrist
+      addTo(hand, cuffGeo, [0, -0.055, -0.004], null, [1.0, 0.6, 0.72]);
 
       // three black darts on the back of the hand
       const dgeo = new THREE.CapsuleGeometry(0.0045, 0.024, 4, 8);
@@ -79,7 +90,7 @@ export class Player {
       const dz = [0.22, 0, -0.22];
       for (let i = 0; i < 3; i++) {
         const m = new THREE.Mesh(dgeo, dartMat);
-        m.position.set(dx[i], 0.014, 0.046);
+        m.position.set(dx[i], 0.014, 0.038);
         m.rotation.set(0, 0, dz[i]);
         hand.add(m);
       }

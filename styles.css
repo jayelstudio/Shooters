@@ -41,22 +41,22 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 58px;
-  padding: 6px 10px;
+  min-width: 92px;
+  padding: 10px 16px;
   background: rgba(0, 0, 0, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  border-radius: 14px;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 .hud-label {
-  font-size: 10px;
+  font-size: 20px;
   letter-spacing: 2px;
   text-transform: uppercase;
   opacity: 0.65;
 }
 .hud-cell span:last-child {
-  font-size: 24px;
+  font-size: 48px;
   font-weight: 700;
   letter-spacing: 1px;
 }
