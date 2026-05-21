@@ -27,14 +27,8 @@ html, body {
   display: block;
 }
 
-/* ---------- HUD ---------- */
-.hud-side {
-  position: fixed;
-  top: calc(var(--safe-t) + 8px + 10vh);
-  display: flex;
-  gap: 6px;
-  z-index: 10;
-}
+/* ---------- HUD (DOM stats hidden; rendered as 3D panels in the scene) ---------- */
+.hud-side { display: none; }
 .hud-left { left: calc(env(safe-area-inset-left, 0px) + 10px); }
 .hud-right { right: calc(env(safe-area-inset-right, 0px) + 10px); }
 .hud-cell {
@@ -203,9 +197,9 @@ html, body {
 /* Move arrows: left on the left edge, right on the right edge, same height */
 .ctl.move {
   position: fixed;
-  bottom: calc(var(--safe-b) + 150px);
-  width: 62px;
-  height: 62px;
+  bottom: calc(var(--safe-b) + 150px + 15vh);
+  width: 53px;
+  height: 53px;
   background: none;
   border: none;
   padding: 0;
