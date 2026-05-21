@@ -32,10 +32,10 @@ export const CONFIG = {
   // Shot power meter (ping-pong). 0..1, sweet spot centered at 0.5.
   meter: {
     baseSpeed: 1.05,     // cycles/sec at level 1
-    speedPerLevel: 0.10,
+    speedPerLevel: 0.18, // meter gets noticeably faster each level
     basePerfectTol: 0.085, // half-width of the swish zone at level 1
-    tolPerLevel: 0.006,
-    minPerfectTol: 0.035,
+    tolPerLevel: 0.009,  // green zone shrinks each level
+    minPerfectTol: 0.03,
     spread: 0.20,        // speed = vIdeal * (1 + spread*(2m-1)) outside perfect zone
   },
 

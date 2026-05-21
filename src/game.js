@@ -81,7 +81,11 @@ export class Game {
     $('btn-left').addEventListener('pointerdown', (e) => { e.preventDefault(); this._move(-1); });
     $('btn-right').addEventListener('pointerdown', (e) => { e.preventDefault(); this._move(1); });
 
-    $('btn-start').addEventListener('click', () => this.start());
+    const startEl = $('overlay-start');
+    startEl.addEventListener('click', () => this.start());
+    startEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') this.start();
+    });
     $('btn-restart').addEventListener('click', () => this.restart());
   }
 
@@ -115,7 +119,6 @@ export class Game {
   _move(dir) {
     if (this.state !== 'ready') return;
     if (dir < 0) this.player.moveLeft(); else this.player.moveRight();
-    this._updateMoveHint();
   }
 
   _startCharge() {
@@ -214,21 +217,42 @@ export class Game {
     }
     this.targetIndex = next;
     this._placeMarker();
-    this._updateMoveHint();
   }
 
-  _updateMoveHint() {
-    const hint = $('move-hint');
-    if (this.player.index === this.targetIndex) {
-      hint.textContent = 'SHOOT!';
-      hint.className = 'on-spot';
-    } else if (this.player.index < this.targetIndex) {
-      hint.textContent = 'Move ▶ to the glowing spot';
-      hint.className = '';
-    } else {
-      hint.textContent = '◀ Move to the glowing spot';
-      hint.className = '';
+  // Bright orange arrow beside the backboard, or "SHOOT!" once on the spot.
+  // Positions are projected from the backboard's 3D location each frame.
+  _updateCues() {
+    const arrow = $('dir-arrow');
+    const cue = $('shoot-cue');
+    if (this.state !== 'ready') {
+      arrow.classList.add('hidden');
+      cue.classList.add('hidden');
+      return;
     }
+    const W = window.innerWidth, H = window.innerHeight;
+    const bb = CONFIG.backboard;
+    if (this.player.index === this.targetIndex) {
+      arrow.classList.add('hidden');
+      const p = this._project(0, bb.top + 0.15, bb.z, W, H);
+      cue.style.left = p.x + 'px';
+      cue.style.top = (p.y - 10) + 'px';
+      cue.classList.remove('hidden');
+    } else {
+      cue.classList.add('hidden');
+      const goRight = this.targetIndex > this.player.index;
+      arrow.textContent = goRight ? '▶' : '◀';
+      const midY = (bb.top + bb.bottom) / 2;
+      const e = this._project(goRight ? bb.halfW : -bb.halfW, midY, bb.z, W, H);
+      arrow.style.left = (e.x + (goRight ? 52 : -52)) + 'px';
+      arrow.style.top = e.y + 'px';
+      arrow.classList.remove('hidden');
+    }
+  }
+
+  _project(x, y, z, W, H) {
+    const v = new THREE.Vector3(x, y, z);
+    v.project(this.camera);
+    return { x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H };
   }
 
   _banner(text, dur) {
@@ -288,12 +312,13 @@ export class Game {
         this.ball.holdAtHands();
         this.player.setPose(0);
         this.state = 'ready';
-        this._updateMoveHint();
       }
     }
 
     this.player.update(dt);
     this.camera.updateMatrixWorld();
+    this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert();
+    this._updateCues();
     this.ball.update(dt, this.audio);
   }
 

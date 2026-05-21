@@ -6,7 +6,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#05060a" />
-  <title>Shooters — 3PT</title>
+  <title>Buckets — 3PT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
   <script type="importmap">
   {
@@ -28,7 +31,8 @@
   </div>
   <div id="progress"><div id="progress-fill"></div></div>
 
-  <div id="move-hint"></div>
+  <div id="dir-arrow" class="hidden"></div>
+  <div id="shoot-cue" class="hidden">SHOOT!</div>
   <div id="banner"></div>
   <div id="popup"></div>
 
@@ -50,18 +54,8 @@
   </div>
 
   <!-- Overlays -->
-  <div id="overlay-start" class="overlay">
-    <div class="panel">
-      <h1>SHOOTERS</h1>
-      <p class="sub">3-Point Shootout</p>
-      <ul class="how">
-        <li><b>◀ ▶</b> move along the arc to the glowing spot</li>
-        <li><b>Hold SHOOT</b> — release in the green zone for a swish</li>
-        <li><b>DRIBBLE</b> to warm up before you shoot</li>
-      </ul>
-      <button id="btn-start" class="primary">TAP TO START</button>
-      <p class="tip">Best in portrait. Sound on for crowd &amp; swish.</p>
-    </div>
+  <div id="overlay-start" class="overlay splash" role="button" tabindex="0" aria-label="Tap to play">
+    <img class="splash-img" src="./buckets-splash.png" alt="Buckets — Tap to play" />
   </div>
 
   <div id="overlay-over" class="overlay hidden">
