@@ -1,12 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG, D2R } from './config.js';
 
-// User-supplied static glTF hands (no rig/animation -> moved as a whole).
-const MODEL_URL = './hands/screne.gltf';
-const MODEL_SCALE = 0.42;            // target max dimension in world units
-const MODEL_ROT = [0, 0, 0];         // orientation tuning (radians)
-const MODEL_OFFSET = [0, -0.05, 0.06]; // offset from the ball center
-
 // Computes the 5 shooting-spot positions along the 3pt arc.
 export function buildSpots() {
   const { rim, spotRadius, spotAnglesDeg, eyeHeight } = CONFIG;
@@ -35,8 +29,6 @@ export class Player {
     this.pose = 0;
     this.targetPose = 0;
     this.ft = 0;
-    this.useModel = false;
-    this._loadHandModel();
 
     const s = this.spots[this.index];
     camera.position.set(s.x, s.y, s.z);
@@ -44,19 +36,10 @@ export class Player {
   }
 
   _buildArms() {
-    // Cartoon white gloves (Mickey style): cel shading + bold dark outline,
-    // puffy rounded forms, three dark darts on the back, a rolled cuff.
-    const ramp = new Uint8Array([110, 180, 245, 255]); // 4-band toon ramp (kept bright for white)
-    const gradient = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
-    gradient.needsUpdate = true;
-    gradient.minFilter = gradient.magFilter = THREE.NearestFilter;
-
-    const glove = new THREE.MeshToonMaterial({ color: 0xf4f4f4, gradientMap: gradient });
-    const outline = new THREE.MeshBasicMaterial({ color: 0x141414, side: THREE.BackSide });
+    // White gloves: soft smooth shading, no outline, three dark darts, a cuff.
+    const glove = new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.9, metalness: 0 });
     const dartMat = new THREE.MeshBasicMaterial({ color: 0x111111, toneMapped: false });
-    const OUTLINE = 1.16;
 
-    // a mesh drawn twice (white toon + slightly larger dark back-face shell = outline)
     const addTo = (parent, geo, pos, rot, scale) => {
       const m = new THREE.Mesh(geo, glove);
       if (pos) m.position.set(pos[0], pos[1], pos[2]);
@@ -64,11 +47,6 @@ export class Player {
       if (scale) m.scale.set(scale[0], scale[1], scale[2]);
       m.castShadow = true;
       parent.add(m);
-      const o = new THREE.Mesh(geo, outline);
-      o.position.copy(m.position);
-      o.rotation.copy(m.rotation);
-      o.scale.copy(m.scale).multiplyScalar(OUTLINE);
-      parent.add(o);
     };
 
     const fProx = new THREE.CapsuleGeometry(0.019, 0.026, 6, 12);
@@ -141,18 +119,6 @@ export class Player {
     const ft = this.ft;
     const by = THREE.MathUtils.lerp(-0.38, -0.12, p);
     const bz = THREE.MathUtils.lerp(-0.71, -0.66, p);
-
-    // Static glTF hands: move the whole model with the shot (no finger flex).
-    if (this.useModel && this.handsModel) {
-      this.handsModel.position.set(
-        MODEL_OFFSET[0],
-        by + MODEL_OFFSET[1] + ft * 0.18,
-        bz + MODEL_OFFSET[2] - ft * 0.05
-      );
-      this.handsModel.rotation.set(MODEL_ROT[0] + ft * 0.5, MODEL_ROT[1], MODEL_ROT[2]);
-      return;
-    }
-
     const tiltOver = -0.35 - p * 0.1; // fingers tip back over the top of the ball
 
     // LEFT (guide) glove: grips the left side; peels away on release
@@ -167,34 +133,6 @@ export class Player {
 
   // Kick off the release follow-through (decays back to 0 in update()).
   startFollowThrough() { this.ft = 1; }
-
-  // Load the static glTF hands; on success swap out the procedural gloves.
-  async _loadHandModel() {
-    try {
-      const { GLTFLoader } = await import(
-        'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/loaders/GLTFLoader.js'
-      );
-      const gltf = await new GLTFLoader().loadAsync(MODEL_URL);
-      const model = gltf.scene;
-      // recenter to origin and scale to a sensible size
-      const box = new THREE.Box3().setFromObject(model);
-      const size = new THREE.Vector3(); box.getSize(size);
-      const center = new THREE.Vector3(); box.getCenter(center);
-      model.position.sub(center);
-      model.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-      const wrap = new THREE.Group();
-      wrap.add(model);
-      wrap.scale.setScalar(MODEL_SCALE / Math.max(size.x, size.y, size.z));
-
-      this.arms.remove(this.leftHand, this.rightHand);
-      this.handsModel = wrap;
-      this.arms.add(wrap);
-      this.useModel = true;
-      this._applyArmPose(this.pose);
-    } catch (e) {
-      console.warn('Hand model load failed; keeping procedural gloves.', e);
-    }
-  }
 
   // World-space point where the ball sits in the hands, given pose p.
   handBallPosition(p, out = new THREE.Vector3()) {
