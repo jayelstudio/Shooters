@@ -38,34 +38,41 @@ export class Game {
     this._refreshHUD();
   }
 
-  // Stats rendered as 3D panels sitting back in the scene at the court's depth.
+  // Stats as 3D panels at the court's depth: LEVEL/SCORE stacked on the left,
+  // LIVES/MAKES stacked on the right.
   _buildHUD3D() {
     const group = new THREE.Group();
-    group.position.set(0, 4.7, -2);
+    group.position.set(0, 5.6, -2);
     this.scene.add(group);
-    const defs = [
-      { key: 'level', label: 'LEVEL', color: '#ffffff' },
-      { key: 'score', label: 'SCORE', color: '#ffffff' },
-      { key: 'makes', label: 'MAKES', color: '#ff7a18' },
-      { key: 'lives', label: 'LIVES', color: '#ffffff' },
+    const W = 1.9, H = 1.12, vGap = 0.16, colX = 2.0;
+    const columns = [
+      { x: -colX, items: [
+        { key: 'level', label: 'LEVEL', color: '#ffffff' },
+        { key: 'score', label: 'SCORE', color: '#ffffff' },
+      ] },
+      { x: colX, items: [
+        { key: 'lives', label: 'LIVES', color: '#ffffff' },
+        { key: 'makes', label: 'MAKES', color: '#ff7a18' },
+      ] },
     ];
-    const W = 1.05, H = 0.62, gap = 0.14;
-    const total = defs.length * W + (defs.length - 1) * gap;
-    this.hud3d = defs.map((d, i) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 256; canvas.height = 150;
-      const tex = new THREE.CanvasTexture(canvas);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = 4;
-      const mesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(W, H),
-        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false })
-      );
-      mesh.position.x = -total / 2 + W / 2 + i * (W + gap);
-      mesh.renderOrder = 10;
-      group.add(mesh);
-      return { ...d, canvas, ctx: canvas.getContext('2d'), tex };
-    });
+    this.hud3d = [];
+    for (const col of columns) {
+      col.items.forEach((d, row) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 320; canvas.height = 188;
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 4;
+        const mesh = new THREE.Mesh(
+          new THREE.PlaneGeometry(W, H),
+          new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false })
+        );
+        mesh.position.set(col.x, (0.5 - row) * (H + vGap), 0);
+        mesh.renderOrder = 10;
+        group.add(mesh);
+        this.hud3d.push({ ...d, canvas, ctx: canvas.getContext('2d'), tex });
+      });
+    }
     // redraw once the web font is ready so the panels use Oswald
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => this._refreshHUD());
@@ -363,18 +370,18 @@ export class Game {
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = 'rgba(0,0,0,0.82)';
       ctx.beginPath();
-      ctx.roundRect(5, 5, w - 10, h - 10, 18);
+      ctx.roundRect(5, 5, w - 10, h - 10, h * 0.14);
       ctx.fill();
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 4;
       ctx.strokeStyle = 'rgba(255,255,255,0.18)';
       ctx.stroke();
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.font = "700 30px Oswald, 'Arial Narrow', sans-serif";
-      ctx.fillText(p.label, w / 2, 46);
+      ctx.font = `700 ${Math.round(h * 0.2)}px Oswald, 'Arial Narrow', sans-serif`;
+      ctx.fillText(p.label, w / 2, h * 0.3);
       ctx.fillStyle = p.color;
-      ctx.font = "700 78px Oswald, 'Arial Narrow', sans-serif";
-      ctx.fillText(String(vals[p.key]), w / 2, 126);
+      ctx.font = `700 ${Math.round(h * 0.5)}px Oswald, 'Arial Narrow', sans-serif`;
+      ctx.fillText(String(vals[p.key]), w / 2, h * 0.86);
       p.tex.needsUpdate = true;
     }
   }

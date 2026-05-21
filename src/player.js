@@ -29,6 +29,7 @@ export class Player {
     this.pose = 0;
     this.targetPose = 0;
     this.ft = 0;
+    this._buildBlendedGloves(); // fuse the glove parts into one smooth surface
 
     const s = this.spots[this.index];
     camera.position.set(s.x, s.y, s.z);
@@ -40,6 +41,7 @@ export class Player {
     const glove = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.82, metalness: 0 });
     const dartMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7 });
     const holeMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a, side: THREE.DoubleSide });
+    this.gloveMat = glove; this.dartMat = dartMat; this.holeMat = holeMat;
 
     const addTo = (parent, geo, pos, rot, scale) => {
       const m = new THREE.Mesh(geo, glove);
@@ -132,6 +134,91 @@ export class Player {
 
   // Kick off the release follow-through (decays back to 0 in update()).
   startFollowThrough() { this.ft = 1; }
+
+  // Add the rolled cuff (torus + dark opening) and three darts to a hand group,
+  // sized to the hand's vertical/back extent.
+  _addCuffAndDarts(hand, halfH, backZ) {
+    const cuff = new THREE.Mesh(new THREE.TorusGeometry(halfH * 0.72, halfH * 0.34, 16, 30), this.gloveMat);
+    cuff.position.set(0, -halfH * 1.02, -0.006);
+    cuff.rotation.x = Math.PI / 2 - 0.25;
+    cuff.castShadow = true;
+    hand.add(cuff);
+    const hole = new THREE.Mesh(new THREE.CircleGeometry(halfH * 0.56, 24), this.holeMat);
+    hole.position.set(0, -halfH * 1.12, -0.014);
+    hole.rotation.x = Math.PI / 2 - 0.25;
+    hand.add(hole);
+    const dgeo = new THREE.CapsuleGeometry(0.005, 0.03, 6, 10);
+    const dx = [-0.022, 0, 0.022], dz = [0.2, 0, -0.2];
+    for (let i = 0; i < 3; i++) {
+      const m = new THREE.Mesh(dgeo, this.dartMat);
+      m.position.set(dx[i], halfH * 0.32, backZ + 0.002);
+      m.rotation.set(0, 0, dz[i]);
+      hand.add(m);
+    }
+  }
+
+  // Fuse the palm/fingers/thumb into one smooth surface with metaballs so the
+  // glove reads as a single molded piece. Falls back to the primitive gloves.
+  async _buildBlendedGloves() {
+    try {
+      const { MarchingCubes } = await import(
+        'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/objects/MarchingCubes.js'
+      );
+      const left = this._makeBlendedHand(MarchingCubes, -1);
+      const right = this._makeBlendedHand(MarchingCubes, 1);
+      if (!left || !right) return;
+      left.scale.setScalar(0.8);
+      right.scale.setScalar(0.8);
+      this.arms.remove(this.leftHand, this.rightHand);
+      this.leftHand = left;
+      this.rightHand = right;
+      this.arms.add(left, right);
+      this._applyArmPose(this.pose);
+    } catch (e) {
+      console.warn('Blended gloves unavailable; keeping primitive gloves.', e);
+    }
+  }
+
+  _makeBlendedHand(MarchingCubes, side) {
+    const mc = new MarchingCubes(64, this.gloveMat, true, false, 80000);
+    mc.isolation = 80;
+    mc.reset();
+    const SUB = 12, S = 0.52;
+    const add = (x, y, z, s = S) => mc.addBall(x, y, z, s, SUB);
+    // palm mass
+    add(0.5, 0.43, 0.5, 0.7); add(0.44, 0.42, 0.5, 0.55); add(0.56, 0.42, 0.5, 0.55);
+    add(0.5, 0.49, 0.5, 0.55); add(0.47, 0.46, 0.5, 0.45); add(0.53, 0.46, 0.5, 0.45);
+    // four fingers (columns of balls blending upward)
+    const fxs = [0.415, 0.475, 0.535, 0.595];
+    fxs.forEach((fx) => {
+      add(fx, 0.55, 0.5, 0.42); add(fx, 0.61, 0.49, 0.38); add(fx, 0.665, 0.475, 0.34);
+    });
+    // thumb on the inner side
+    add(0.5 - side * 0.10, 0.44, 0.52, 0.5);
+    add(0.5 - side * 0.14, 0.48, 0.53, 0.42);
+    add(0.5 - side * 0.17, 0.52, 0.54, 0.36);
+    mc.update();
+
+    const geo = typeof mc.generateBufferGeometry === 'function'
+      ? mc.generateBufferGeometry()
+      : (typeof mc.generateGeometry === 'function' ? mc.generateGeometry() : null);
+    if (!geo || !geo.attributes.position || geo.attributes.position.count === 0) return null;
+    geo.computeVertexNormals();
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox;
+    const size = new THREE.Vector3(); bb.getSize(size);
+    const center = new THREE.Vector3(); bb.getCenter(center);
+    geo.translate(-center.x, -center.y, -center.z);
+    const s = 0.3 / Math.max(size.x, size.y, size.z); // target max dimension
+    geo.scale(s, s, s);
+
+    const hand = new THREE.Group();
+    const body = new THREE.Mesh(geo, this.gloveMat);
+    body.castShadow = true;
+    hand.add(body);
+    this._addCuffAndDarts(hand, (size.y * s) / 2, (size.z * s) / 2);
+    return hand;
+  }
 
   // World-space point where the ball sits in the hands, given pose p.
   handBallPosition(p, out = new THREE.Vector3()) {
