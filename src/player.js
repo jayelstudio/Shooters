@@ -35,24 +35,23 @@ export class Player {
   }
 
   _buildArms() {
-    // Cartoon look: flat cel shading + bold dark outlines (inverted hull),
-    // with soft rounded forms for chubby child hands.
-    const ramp = new Uint8Array([70, 140, 235, 255]); // 4-band toon ramp
+    // Cartoon white gloves (Mickey style): cel shading + bold dark outline,
+    // puffy rounded forms, three dark darts on the back, a rolled cuff.
+    const ramp = new Uint8Array([110, 180, 245, 255]); // 4-band toon ramp (kept bright for white)
     const gradient = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
     gradient.needsUpdate = true;
     gradient.minFilter = gradient.magFilter = THREE.NearestFilter;
 
-    const skin = new THREE.MeshToonMaterial({ color: 0xf3b78c, gradientMap: gradient });
-    const outline = new THREE.MeshBasicMaterial({ color: 0x2b1a10, side: THREE.BackSide });
-    const shineMat = new THREE.MeshBasicMaterial({ color: 0xffe3c6, toneMapped: false });
-    const creaseMat = new THREE.MeshBasicMaterial({ color: 0xb9794f, toneMapped: false });
-    const OUTLINE = 1.2;
+    const glove = new THREE.MeshToonMaterial({ color: 0xf4f4f4, gradientMap: gradient });
+    const outline = new THREE.MeshBasicMaterial({ color: 0x141414, side: THREE.BackSide });
+    const dartMat = new THREE.MeshBasicMaterial({ color: 0x111111, toneMapped: false });
+    const OUTLINE = 1.16;
 
-    const makeHand = (side) => {
+    const makeGlove = (side) => {
       const hand = new THREE.Group();
-      // each part is drawn twice: cel-shaded skin + a slightly larger dark shell
+      // glove part: drawn twice (white toon + slightly larger dark shell for the outline)
       const add = (geo, pos, rot, scale) => {
-        const m = new THREE.Mesh(geo, skin);
+        const m = new THREE.Mesh(geo, glove);
         m.position.set(pos[0], pos[1], pos[2]);
         if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
         if (scale) m.scale.set(scale[0], scale[1], scale[2]);
@@ -64,58 +63,51 @@ export class Player {
         o.scale.copy(m.scale).multiplyScalar(OUTLINE);
         hand.add(o);
       };
-
-      const ball = new THREE.SphereGeometry(0.05, 16, 12);
-      const finger = new THREE.CapsuleGeometry(0.016, 0.026, 6, 12);
-      const thumb = new THREE.CapsuleGeometry(0.018, 0.02, 6, 12);
-      const fore = new THREE.CapsuleGeometry(0.034, 0.24, 8, 14);
-
-      // rounded palm (thin in x, tall in y, wide in z), facing inward
-      add(ball, [0, 0, 0], null, [0.6, 1.2, 1.0]);
-      // four short chubby fingers curling inward over the ball
-      for (let i = 0; i < 4; i++) {
-        add(finger, [0, 0.072, -0.027 + i * 0.018], [-0.2, 0, side * 0.5]);
-      }
-      // stubby thumb on the near side
-      add(thumb, [0, 0.0, 0.05], [0.9, 0, side * 0.45]);
-      // thin child forearm receding down and toward the camera
-      add(fore, [0, -0.2, 0.06], [0.32, 0, 0]);
-
-      // --- flat cartoon details on the back of the hand (no outline) ---
-      const detail = (geo, mat, pos, rot, scale) => {
-        const m = new THREE.Mesh(geo, mat);
+      const dart = (geo, pos, rot) => {
+        const m = new THREE.Mesh(geo, dartMat);
         m.position.set(pos[0], pos[1], pos[2]);
         if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
-        if (scale) m.scale.set(scale[0], scale[1], scale[2]);
         hand.add(m);
       };
-      const bx = side * 0.032; // back-of-hand surface that faces the camera
-      const knuckle = new THREE.SphereGeometry(0.011, 10, 8);
-      for (let i = 0; i < 4; i++) detail(knuckle, skin, [bx, 0.052, -0.027 + i * 0.018]);
-      // knuckle crease across the back of the hand
-      detail(new THREE.CapsuleGeometry(0.004, 0.05, 4, 8), creaseMat, [bx, 0.04, 0], [Math.PI / 2, 0, 0]);
-      // flat illustrated highlight
-      detail(new THREE.SphereGeometry(0.02, 12, 10), shineMat, [bx + side * 0.002, 0.01, 0.008], null, [0.25, 0.95, 0.7]);
+
+      const palm = new THREE.SphereGeometry(0.058, 16, 12);
+      const finger = new THREE.CapsuleGeometry(0.02, 0.045, 6, 12);
+      const thumbG = new THREE.CapsuleGeometry(0.022, 0.036, 6, 12);
+      const cuff = new THREE.CylinderGeometry(0.052, 0.052, 0.03, 16);
+
+      // puffy rounded palm (back faces +z), four fat fingers, fat thumb
+      add(palm, [0, 0, 0], null, [1.1, 0.95, 0.72]);
+      const fx = [-0.036, -0.012, 0.012, 0.036];
+      for (let i = 0; i < 4; i++) add(finger, [fx[i], 0.078, 0], [0, 0, -Math.sign(fx[i]) * 0.12]);
+      add(thumbG, [-side * 0.05, 0.01, 0.012], [0.2, 0, side * 0.9]);
+      // rolled cuff at the wrist
+      add(cuff, [0, -0.062, 0], null, null);
+
+      // three black darts on the back of the hand
+      const dgeo = new THREE.CapsuleGeometry(0.0045, 0.024, 4, 8);
+      const dx = [-0.02, 0, 0.02];
+      const dz = [0.22, 0, -0.22];
+      for (let i = 0; i < 3; i++) dart(dgeo, [dx[i], 0.014, 0.045], [0, 0, dz[i]]);
 
       return hand;
     };
 
-    this.leftHand = makeHand(-1);
-    this.rightHand = makeHand(1);
+    this.leftHand = makeGlove(-1);
+    this.rightHand = makeGlove(1);
     this.arms.add(this.leftHand, this.rightHand);
     this._applyArmPose(0);
   }
 
-  // Place both hands flanking the ball; raise them with the shot pose.
+  // Left glove cups the ball from the side; right glove rests on top of it.
   _applyArmPose(p) {
     const by = THREE.MathUtils.lerp(-0.38, -0.12, p);
     const bz = THREE.MathUtils.lerp(-0.71, -0.66, p);
-    const hx = 0.10;
-    this.leftHand.position.set(-hx, by - 0.04, bz + 0.04);
-    this.rightHand.position.set(hx, by - 0.04, bz + 0.04);
-    const tilt = -0.1 - p * 0.35;
-    this.leftHand.rotation.set(tilt, -0.18, 0);
-    this.rightHand.rotation.set(tilt, 0.18, 0);
+    // left: beside the ball, fingers up (stays put)
+    this.leftHand.position.set(-0.12, by - 0.03, bz + 0.04);
+    this.leftHand.rotation.set(-0.1 - p * 0.3, -0.18, 0);
+    // right: on top of the ball, fingers draping over the far side
+    this.rightHand.position.set(0.01, by + 0.11, bz - 0.01);
+    this.rightHand.rotation.set(-1.95 - p * 0.1, 0.0, 0.12);
   }
 
   // World-space point where the ball sits in the hands, given pose p.
