@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { CONFIG, D2R } from './config.js';
-import { skinMaterial } from './materials.js';
 
 // Computes the 5 shooting-spot positions along the 3pt arc.
 export function buildSpots() {
@@ -36,53 +35,69 @@ export class Player {
   }
 
   _buildArms() {
-    const mat = skinMaterial();
-    const sleeve = new THREE.MeshStandardMaterial({ color: 0xb02a37, roughness: 0.6 });
+    // Small, chubby child hands: short fingers, soft round palms.
+    const skin = new THREE.MeshStandardMaterial({ color: 0xe7af89, roughness: 0.82, metalness: 0 });
 
-    const makeArm = (side) => {
-      const arm = new THREE.Group();
-      // upper sleeve
-      const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.085, 0.42, 12), sleeve);
-      upper.position.set(0, -0.21, 0);
-      arm.add(upper);
-      // forearm
-      const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.07, 0.4, 12), mat);
-      fore.position.set(0, 0.2, 0);
-      arm.add(fore);
-      // hand
-      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10), mat);
-      hand.scale.set(1, 0.7, 1.1);
-      hand.position.set(0, 0.42, 0);
-      arm.add(hand);
-      arm.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-      arm.userData.side = side;
-      return arm;
+    const makeHand = (side) => {
+      const hand = new THREE.Group();
+
+      // palm — thin slab whose wide face turns inward toward the ball
+      const palm = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.085, 0.078), skin);
+      hand.add(palm);
+
+      // soft heel of the palm (chubby)
+      const heel = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10), skin);
+      heel.scale.set(0.46, 0.62, 1.0);
+      heel.position.set(0, -0.03, 0);
+      hand.add(heel);
+
+      // four short, fat fingers spread across the top of the palm
+      for (let i = 0; i < 4; i++) {
+        const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.014, 0.03, 4, 8), skin);
+        f.position.set(0, 0.07, -0.027 + i * 0.018);
+        f.rotation.z = side * 0.5;   // curl inward, over the ball
+        f.rotation.x = -0.25;        // drape over the top
+        hand.add(f);
+      }
+
+      // stubby thumb on the near side of the palm
+      const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.016, 0.026, 4, 8), skin);
+      thumb.position.set(0, 0.0, 0.047);
+      thumb.rotation.x = 0.9;
+      thumb.rotation.z = side * 0.4;
+      hand.add(thumb);
+
+      // thin child forearm receding down and toward the camera
+      const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.26, 6, 12), skin);
+      fore.position.set(0, -0.2, 0.06);
+      fore.rotation.x = 0.32;
+      hand.add(fore);
+
+      hand.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+      return hand;
     };
 
-    this.leftArm = makeArm(-1);
-    this.rightArm = makeArm(1);
-    this.arms.add(this.leftArm, this.rightArm);
+    this.leftHand = makeHand(-1);
+    this.rightHand = makeHand(1);
+    this.arms.add(this.leftHand, this.rightHand);
     this._applyArmPose(0);
   }
 
-  // Interpolated arm placement in camera-local space.
+  // Place both hands flanking the ball; raise them with the shot pose.
   _applyArmPose(p) {
-    // rest: hands low and wide; raised: hands up near top-center (shooting set point)
-    const restL = new THREE.Vector3(-0.34, -0.78, -0.55);
-    const raisedL = new THREE.Vector3(-0.16, -0.30, -0.62);
-    const restR = new THREE.Vector3(0.34, -0.78, -0.55);
-    const raisedR = new THREE.Vector3(0.16, -0.30, -0.62);
-
-    this.leftArm.position.lerpVectors(restL, raisedL, p);
-    this.rightArm.position.lerpVectors(restR, raisedR, p);
-    // rotate forearms upward as they raise
-    this.leftArm.rotation.set(-0.5 - p * 0.9, 0.25 - p * 0.25, 0.15 - p * 0.15);
-    this.rightArm.rotation.set(-0.5 - p * 0.9, -0.25 + p * 0.25, -0.15 + p * 0.15);
+    const by = THREE.MathUtils.lerp(-0.38, -0.12, p);
+    const bz = THREE.MathUtils.lerp(-0.71, -0.66, p);
+    const hx = 0.10;
+    this.leftHand.position.set(-hx, by - 0.04, bz + 0.04);
+    this.rightHand.position.set(hx, by - 0.04, bz + 0.04);
+    const tilt = -0.1 - p * 0.35;
+    this.leftHand.rotation.set(tilt, -0.18, 0);
+    this.rightHand.rotation.set(tilt, 0.18, 0);
   }
 
   // World-space point where the ball sits in the hands, given pose p.
   handBallPosition(p, out = new THREE.Vector3()) {
-    const low = new THREE.Vector3(0, -0.62, -0.62);
+    const low = new THREE.Vector3(0, -0.38, -0.71);
     const high = new THREE.Vector3(0, -0.12, -0.66);
     out.lerpVectors(low, high, p);
     this.camera.localToWorld(out);
