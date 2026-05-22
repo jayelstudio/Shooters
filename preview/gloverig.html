@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>html,body{margin:0;background:#9aa0a8;overflow:hidden}#c{display:block;margin:0 auto}</style>
+<script type="importmap">
+{ "imports": {
+  "three": "/node_modules/three/build/three.module.js",
+  "three/addons/": "/node_modules/three/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { GloveFactory } from '../src/gloves.js';
+
+const params = new URLSearchParams(location.search);
+const view = params.get('view') || 'q';
+const grip = parseFloat(params.get('grip') ?? '0.65');
+const W = view === 'pov' ? 560 : 700, H = view === 'pov' ? 980 : 700;
+const canvas = document.getElementById('c'); canvas.width = W; canvas.height = H;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(W, H, false); renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x9aa0a8);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(0.4, 0.9, 0.8); scene.add(key);
+const fill = new THREE.DirectionalLight(0xbcd0ff, 0.45); fill.position.set(-0.7, 0.1, 0.5); scene.add(fill);
+
+function settle(rig, g, ball) {
+  rig.setGrip(g);
+  for (let i = 0; i < 100; i++) { scene.updateMatrixWorld(true); rig.update(1 / 60, ball); }
+}
+
+let cam;
+if (view === 'pov') {
+  cam = new THREE.PerspectiveCamera(74, W / H, 0.1, 100); cam.position.set(0, 0, 0); cam.lookAt(0, 0, -1);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.12, 32, 24), new THREE.MeshStandardMaterial({ color: 0xd4641d, roughness: 0.6 }));
+  ball.position.set(0, -0.38, -0.71); scene.add(ball);
+  const by = -0.38, bz = -0.71, tiltOver = -0.35;
+  const L = GloveFactory.create('left'); L.group.scale.setScalar(0.85); L.group.scale.x *= -1;
+  L.group.position.set(-0.12, by - 0.02, bz + 0.05); L.group.rotation.set(tiltOver, -1.15, -0.08); scene.add(L.group);
+  const R = GloveFactory.create('right'); R.group.scale.setScalar(0.85);
+  R.group.position.set(0.045, by - 0.03, bz + 0.155); R.group.rotation.set(tiltOver + 0.22, 0.4, 0.05); scene.add(R.group);
+  settle(L, grip, ball); settle(R, grip, ball);
+} else {
+  cam = new THREE.PerspectiveCamera(38, 1, 0.1, 100); cam.position.set(0, 0.04, 0.95); cam.lookAt(0, 0.0, 0);
+  const hand = GloveFactory.create('right');
+  hand.group.rotation.set(-0.05, view === 'grip' ? 0.4 : -0.4, 0);
+  scene.add(hand.group);
+  settle(hand, grip, null);
+}
+
+renderer.render(scene, cam);
+requestAnimationFrame(() => { renderer.render(scene, cam); window.__ready = true; });
+</script>
+</body>
+</html>
