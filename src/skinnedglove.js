@@ -4,6 +4,8 @@ import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
 // Seamless skinned glove: one continuous metaball surface bound to a finger
 // skeleton, so it deforms with no joint seams. Same GloveRig API as gloves.js.
 // Field coord f maps to mesh vertex coord (2f - 1).
+//
+// Fully config-driven so preview/tuner.html can rebuild it live from sliders.
 
 const FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinky'];
 
@@ -26,24 +28,49 @@ function leatherNormal() {
   return t;
 }
 
-const normalMap = leatherNormal();
-const gloveMat = new THREE.MeshPhysicalMaterial({
-  color: 0xeeebe3, roughness: 0.62, metalness: 0,
-  clearcoat: 0.25, clearcoatRoughness: 0.5, envMapIntensity: 0.7,
-  normalMap, normalScale: new THREE.Vector2(0.35, 0.35),
-  sheen: 0.3, sheenColor: new THREE.Color(0xffffff), sheenRoughness: 0.7,
-});
-const holeMat = new THREE.MeshBasicMaterial({ color: 0x141414, side: THREE.DoubleSide });
+// shared (expensive procedural texture; reused across rigs)
+let _normalMap = null;
+function normalMap() { return _normalMap || (_normalMap = leatherNormal()); }
 
-// finger layout in field space [0,1]: base x, length, ball radius/strength.
-// Wide spacing + small strength so fingers stay distinct (no mitten).
-const LAYOUT = {
-  index: { x: 0.375, base: 0.50, len: 0.30, str: 0.082, fan: 0.10 },
-  middle: { x: 0.465, base: 0.50, len: 0.33, str: 0.085, fan: 0.03 },
-  ring: { x: 0.555, base: 0.50, len: 0.285, str: 0.082, fan: -0.05 },
-  pinky: { x: 0.64, base: 0.485, len: 0.235, str: 0.072, fan: -0.13 },
-  thumb: { x: 0.285, base: 0.45, len: 0.21, str: 0.10, fan: 0.62 },
+// All tunable parameters. The tuner edits a deep clone of this and rebuilds.
+// Field space is [0,1]; y is up (fingers point +y), x across, z depth.
+export const DEFAULTS = {
+  res: 80,
+  isolation: 86,
+  subtract: 12,
+  fingerN: 14,            // balls per finger
+  taperA: 0.10,           // linear taper toward tip
+  taperB: 0.20,           // quadratic taper toward tip
+  knuckleStr: 0.045,      // ridge that fuses finger bases (low = fingers split early)
+  webStr: 0.07,           // thumb webbing fill
+  curlRoot: 1.05,
+  curlMid: 1.25,
+  skinR: 0.22,            // skin-weight falloff radius (out space)
+  // finger layout. dir = normalize(sin(fanX), cos(fanX), fanZ); base z = 0.5 + dz
+  fingers: {
+    index:  { x: 0.36,  base: 0.50,  len: 0.32, str: 0.078, fanX: 0.12,  fanZ: 0.0,  dz: 0.0 },
+    middle: { x: 0.46,  base: 0.50,  len: 0.35, str: 0.080, fanX: 0.03,  fanZ: 0.0,  dz: 0.0 },
+    ring:   { x: 0.56,  base: 0.50,  len: 0.31, str: 0.078, fanX: -0.06, fanZ: 0.0,  dz: 0.0 },
+    pinky:  { x: 0.655, base: 0.485, len: 0.25, str: 0.068, fanX: -0.16, fanZ: 0.0,  dz: 0.0 },
+    thumb:  { x: 0.275, base: 0.40,  len: 0.24, str: 0.090, fanX: 0.95,  fanZ: 0.45, dz: 0.06 },
+  },
+  material: {
+    color: 0xeeebe3, roughness: 0.62, clearcoat: 0.25, clearcoatRoughness: 0.5,
+    envMapIntensity: 0.7, normalScale: 0.35, sheen: 0.3, sheenRoughness: 0.7,
+  },
 };
+
+function cloneCfg(c) { return JSON.parse(JSON.stringify(c)); }
+function mergeCfg(base, over) {
+  const out = cloneCfg(base);
+  if (!over) return out;
+  for (const k of Object.keys(over)) {
+    if (k === 'fingers' || k === 'material') Object.assign(out[k], over[k]);
+    else out[k] = over[k];
+  }
+  if (over.fingers) for (const n of Object.keys(over.fingers)) Object.assign(out.fingers[n], over.fingers[n]);
+  return out;
+}
 
 function toOut(v) { return new THREE.Vector3(2 * v.x - 1, 2 * v.y - 1, 2 * v.z - 1); }
 
@@ -52,7 +79,8 @@ class FingerJoints {
 }
 
 export class GloveRig {
-  constructor() {
+  constructor(config) {
+    this.cfg = mergeCfg(DEFAULTS, config);
     this.group = new THREE.Group();
     this.grip = 0;
     this.state = 'idle';
@@ -63,39 +91,54 @@ export class GloveRig {
   }
 
   _build() {
-    const res = 88;
-    const mc = new MarchingCubes(res, gloveMat, true, false, 320000);
-    mc.isolation = 80;
+    const cfg = this.cfg;
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: cfg.material.color, roughness: cfg.material.roughness, metalness: 0,
+      clearcoat: cfg.material.clearcoat, clearcoatRoughness: cfg.material.clearcoatRoughness,
+      envMapIntensity: cfg.material.envMapIntensity,
+      normalMap: normalMap(), normalScale: new THREE.Vector2(cfg.material.normalScale, cfg.material.normalScale),
+      sheen: cfg.material.sheen, sheenColor: new THREE.Color(0xffffff), sheenRoughness: cfg.material.sheenRoughness,
+    });
+    this.material = mat;
+
+    const mc = new MarchingCubes(cfg.res, mat, true, false, 360000);
+    mc.isolation = cfg.isolation;
     mc.reset();
-    const SUB = 12;
+    const SUB = cfg.subtract;
     const add = (x, y, z, s) => mc.addBall(x, y, z, s, SUB);
 
-    // palm slab + knuckle ridge (fuses finger bases, fingers separate higher up)
+    // palm slab (rounded, ends at the wrist - no cuff)
     add(0.5, 0.40, 0.5, 0.2); add(0.40, 0.41, 0.5, 0.15); add(0.60, 0.41, 0.5, 0.15);
     add(0.46, 0.40, 0.5, 0.13); add(0.54, 0.40, 0.5, 0.13);
     add(0.5, 0.45, 0.5, 0.10);
-    add(0.5, 0.35, 0.5, 0.18);
-    // knuckle ridge across the finger bases (low strength so fingers split early)
-    [0.375, 0.465, 0.555, 0.64].forEach((x) => add(x, 0.485, 0.5, 0.055));
+    add(0.5, 0.34, 0.5, 0.18);   // rounded wrist end
+    add(0.5, 0.29, 0.5, 0.14);
+    // knuckle ridge across the four finger bases (low strength so fingers split early)
+    [cfg.fingers.index.x, cfg.fingers.middle.x, cfg.fingers.ring.x, cfg.fingers.pinky.x]
+      .forEach((x) => add(x, 0.485, 0.5, cfg.knuckleStr));
 
     // bone rest endpoints in field space, recorded for skinning + skeleton
-    const segs = {}; // name -> { root, mid, tip } field-space Vector3
+    const segs = {}; // name -> { root, mid, tip }
     for (const name of FINGERS) {
-      const f = LAYOUT[name];
-      const dir = new THREE.Vector3(Math.sin(f.fan), Math.cos(f.fan), 0); // fan in x
-      const root = new THREE.Vector3(f.x, f.base, 0.5);
+      const f = cfg.fingers[name];
+      const dir = new THREE.Vector3(Math.sin(f.fanX), Math.cos(f.fanX), f.fanZ || 0).normalize();
+      const root = new THREE.Vector3(f.x, f.base, 0.5 + (f.dz || 0));
       const mid = root.clone().addScaledVector(dir, f.len * 0.5);
       const tip = root.clone().addScaledVector(dir, f.len);
       segs[name] = { root, mid, tip };
-      // dense balls along the finger for a smooth clean tube
-      const N = 14;
+      const N = cfg.fingerN;
       for (let i = 0; i <= N; i++) {
         const t = i / N;
         const p = root.clone().addScaledVector(dir, f.len * t);
-        // slim, gently tapered toward the rounded tip
-        const taper = 1 - 0.12 * t - 0.18 * t * t;
+        const taper = 1 - cfg.taperA * t - cfg.taperB * t * t;
         add(p.x, p.y, p.z, f.str * taper);
       }
+    }
+    // thumb webbing: fill the gap between thumb base and index base
+    {
+      const tb = segs.thumb.root, ib = segs.index.root;
+      const wmid = tb.clone().lerp(ib, 0.5);
+      add(wmid.x, wmid.y, wmid.z, cfg.webStr);
     }
     mc.update();
 
@@ -110,7 +153,7 @@ export class GloveRig {
     const wristOut = toOut(new THREE.Vector3(0.5, 0.40, 0.5));
     const wrist = new THREE.Bone(); wrist.position.copy(wristOut);
     const boneList = [wrist];
-    const fingerBones = {}; // name -> { rootBone, midBone, rootOut, midOut, tipOut }
+    const fingerBones = {};
     for (const name of FINGERS) {
       const s = segs[name];
       const rootOut = toOut(s.root), midOut = toOut(s.mid), tipOut = toOut(s.tip);
@@ -134,10 +177,11 @@ export class GloveRig {
       const ab = b.clone().sub(a); const t = THREE.MathUtils.clamp(p.clone().sub(a).dot(ab) / ab.lengthSq(), 0, 1);
       return p.distanceTo(a.clone().addScaledVector(ab, t));
     };
-    const R = 0.22;
+    const R = cfg.skinR;
+    const lowY = toOut(new THREE.Vector3(0, 0.46, 0)).y;
     for (let i = 0; i < count; i++) {
       v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
-      const cands = [{ b: 0, w: 0.18 }]; // small wrist baseline
+      const cands = [{ b: 0, w: 0.18 }];
       for (const name of FINGERS) {
         const fb = fingerBones[name];
         const dp = distToSeg(v, fb.rootOut, fb.midOut);
@@ -146,8 +190,7 @@ export class GloveRig {
         if (wp > 0) cands.push({ b: boneIndex.get(fb.rootBone), w: wp * wp });
         if (wd > 0) cands.push({ b: boneIndex.get(fb.midBone), w: wd * wd });
       }
-      // palm/cuff verts (low y, far from fingers) lean to wrist
-      if (v.y < toOut(new THREE.Vector3(0, 0.46, 0)).y) cands[0].w += 0.6;
+      if (v.y < lowY) cands[0].w += 0.6;
       cands.sort((a, b) => b.w - a.w);
       const top = cands.slice(0, 4);
       let sum = top.reduce((a, c) => a + c.w, 0) || 1;
@@ -159,7 +202,7 @@ export class GloveRig {
     geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
     geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
 
-    const mesh = new THREE.SkinnedMesh(geo, gloveMat);
+    const mesh = new THREE.SkinnedMesh(geo, mat);
     mesh.castShadow = true;
     mesh.add(wrist);
     mesh.bind(new THREE.Skeleton(boneList));
@@ -174,15 +217,6 @@ export class GloveRig {
     this.group.add(mesh);
     this.group.scale.setScalar(S);
     this.group.position.set(-center.x * S, -center.y * S, -center.z * S);
-
-    // separate rolled cuff (rigid) at the wrist
-    const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.12, 14, 30), gloveMat);
-    cuff.position.copy(toOut(new THREE.Vector3(0.5, 0.31, 0.5)));
-    cuff.rotation.x = Math.PI / 2 - 0.18; cuff.castShadow = true;
-    mesh.add(cuff);
-    const hole = new THREE.Mesh(new THREE.CircleGeometry(0.3, 24), holeMat);
-    hole.position.copy(cuff.position); hole.position.y -= 0.04; hole.rotation.x = Math.PI / 2 - 0.18;
-    mesh.add(hole);
   }
 
   setGrip(v) {
@@ -212,15 +246,15 @@ export class GloveRig {
       const j = this.joints[name];
       j.curl += (j.targetCurl - j.curl) * Math.min(1, 14 * dt);
       const fb = this.fingerBones[name];
-      fb.rootBone.rotation.x = -j.curl * 1.05;
-      fb.midBone.rotation.x = -j.curl * 1.25;
+      fb.rootBone.rotation.x = -j.curl * this.cfg.curlRoot;
+      fb.midBone.rotation.x = -j.curl * this.cfg.curlMid;
     }
   }
 }
 
 export const GloveFactory = {
-  create(side) {
-    const rig = new GloveRig();
+  create(side, config) {
+    const rig = new GloveRig(config);
     if (side === 'left' || side === -1) rig.group.scale.x *= -1;
     return rig;
   },

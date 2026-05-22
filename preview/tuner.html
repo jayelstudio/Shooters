@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Glove Tuner</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #9aa0a8; font: 13px/1.3 -apple-system, system-ui, sans-serif; overflow: hidden; }
+  #wrap { display: flex; height: 100%; }
+  #stage { flex: 1; position: relative; min-width: 0; }
+  #c { display: block; width: 100%; height: 100%; }
+  #panel {
+    width: 300px; max-width: 46vw; background: #1c1f24; color: #d8dde3;
+    overflow-y: auto; padding: 10px 12px 60px; box-sizing: border-box;
+    -webkit-overflow-scrolling: touch;
+  }
+  h3 { margin: 14px 0 4px; font-size: 12px; color: #7fd1ff; text-transform: uppercase; letter-spacing: .06em; }
+  h3:first-child { margin-top: 0; }
+  .row { display: grid; grid-template-columns: 70px 1fr 46px; align-items: center; gap: 6px; margin: 3px 0; }
+  .row label { font-size: 11px; color: #aab2bd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row input[type=range] { width: 100%; }
+  .row .val { font-size: 11px; color: #fff; text-align: right; font-variant-numeric: tabular-nums; }
+  .grp { border-left: 2px solid #2c313a; padding-left: 8px; margin: 4px 0 8px; }
+  .topbar { position: absolute; top: 8px; left: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+  button, select { background: #2c313a; color: #d8dde3; border: 1px solid #3a414c; border-radius: 5px; padding: 6px 9px; font-size: 12px; cursor: pointer; }
+  button:active { background: #3a414c; }
+  .gripbar { position: absolute; bottom: 10px; left: 10px; right: 10px; display: flex; align-items: center; gap: 8px; background: rgba(28,31,36,.82); padding: 8px 12px; border-radius: 8px; color: #d8dde3; }
+  .gripbar input { flex: 1; }
+  #json { width: 100%; height: 120px; background: #11141a; color: #9fe3a0; border: 1px solid #2c313a; border-radius: 5px; font: 11px/1.3 monospace; box-sizing: border-box; margin-top: 6px; }
+  .hint { color: #7d8794; font-size: 11px; margin: 6px 0; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <div class="topbar">
+      <select id="side"><option value="right">Right hand</option><option value="left">Left hand</option></select>
+      <button id="ballBtn">Show ball</button>
+      <button id="resetBtn">Reset</button>
+    </div>
+    <div class="gripbar">
+      <span>Grip</span>
+      <input id="grip" type="range" min="0" max="1" step="0.01" value="0" />
+      <span class="val" id="gripVal">0.00</span>
+    </div>
+  </div>
+  <div id="panel"></div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GloveFactory, DEFAULTS } from '../src/skinnedglove.js';
+import { environment } from '../src/materials.js';
+
+const cfg = structuredClone(DEFAULTS);
+let side = 'right', ballOn = false, gripVal = 0;
+
+// ---- renderer / scene ----
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9aa0a8);
+scene.environment = environment(renderer);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(0.4, 0.9, 0.8); scene.add(key);
+const fill = new THREE.DirectionalLight(0xbcd0ff, 0.45); fill.position.set(-0.7, 0.1, 0.5); scene.add(fill);
+
+const cam = new THREE.PerspectiveCamera(40, 1, 0.05, 100);
+cam.position.set(0, 0.05, 0.9);
+const controls = new OrbitControls(cam, canvas);
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+
+const ball = new THREE.Mesh(
+  new THREE.SphereGeometry(0.12, 32, 24),
+  new THREE.MeshStandardMaterial({ color: 0xd4641d, roughness: 0.6 })
+);
+ball.position.set(0, 0.02, -0.16);
+
+function resize() {
+  const r = canvas.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  cam.aspect = r.width / r.height; cam.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+
+// ---- rig (rebuilt on geometry/material changes) ----
+let rig = null;
+function rebuild() {
+  if (rig) scene.remove(rig.group);
+  rig = GloveFactory.create(side, cfg);
+  scene.add(rig.group);
+  rig.setGrip(gripVal);
+  // settle a few steps so curl matches grip immediately
+  for (let i = 0; i < 30; i++) { scene.updateMatrixWorld(true); rig.update(1 / 60, ballOn ? ball : null); }
+  refreshJson();
+}
+let pending = null;
+function scheduleRebuild() { clearTimeout(pending); pending = setTimeout(rebuild, 40); }
+
+// ---- control panel (generated from schema) ----
+const panel = document.getElementById('panel');
+function section(title) { const h = document.createElement('h3'); h.textContent = title; panel.appendChild(h); }
+function group() { const g = document.createElement('div'); g.className = 'grp'; panel.appendChild(g); return g; }
+
+function slider(parent, label, obj, keyPath, min, max, step) {
+  const row = document.createElement('div'); row.className = 'row';
+  const lab = document.createElement('label'); lab.textContent = label;
+  const inp = document.createElement('input'); inp.type = 'range';
+  inp.min = min; inp.max = max; inp.step = step;
+  const val = document.createElement('span'); val.className = 'val';
+  const keys = keyPath.split('.');
+  const get = () => keys.reduce((o, k) => o[k], obj);
+  const set = (v) => { let o = obj; for (let i = 0; i < keys.length - 1; i++) o = o[keys[i]]; o[keys[keys.length - 1]] = v; };
+  const show = () => { val.textContent = Number(get()).toFixed(step < 0.01 ? 3 : (step < 1 ? 2 : 0)); };
+  inp.value = get(); show();
+  inp.addEventListener('input', () => { set(parseFloat(inp.value)); show(); scheduleRebuild(); });
+  row.append(lab, inp, val); parent.appendChild(row);
+  return inp;
+}
+
+function buildPanel() {
+  panel.innerHTML = '';
+  section('Global');
+  let g = group();
+  slider(g, 'resolution', cfg, 'res', 48, 112, 8);
+  slider(g, 'isolation', cfg, 'isolation', 60, 120, 1);
+  slider(g, 'knuckle', cfg, 'knuckleStr', 0, 0.12, 0.005);
+  slider(g, 'web', cfg, 'webStr', 0, 0.14, 0.005);
+  slider(g, 'taper A', cfg, 'taperA', 0, 0.5, 0.01);
+  slider(g, 'taper B', cfg, 'taperB', 0, 0.6, 0.01);
+  slider(g, 'skin R', cfg, 'skinR', 0.12, 0.35, 0.01);
+
+  for (const name of ['thumb', 'index', 'middle', 'ring', 'pinky']) {
+    section(name);
+    g = group();
+    slider(g, 'spread x', cfg, `fingers.${name}.x`, 0.12, 0.88, 0.005);
+    slider(g, 'base y', cfg, `fingers.${name}.base`, 0.30, 0.60, 0.005);
+    slider(g, 'length', cfg, `fingers.${name}.len`, 0.08, 0.46, 0.005);
+    slider(g, 'thick', cfg, `fingers.${name}.str`, 0.04, 0.16, 0.002);
+    slider(g, 'fan x', cfg, `fingers.${name}.fanX`, -0.6, 1.5, 0.02);
+    slider(g, 'fan z', cfg, `fingers.${name}.fanZ`, -0.6, 0.8, 0.02);
+    slider(g, 'depth z', cfg, `fingers.${name}.dz`, -0.15, 0.20, 0.01);
+  }
+
+  section('material');
+  g = group();
+  // color picker
+  const crow = document.createElement('div'); crow.className = 'row';
+  const clab = document.createElement('label'); clab.textContent = 'color';
+  const cin = document.createElement('input'); cin.type = 'color';
+  cin.value = '#' + cfg.material.color.toString(16).padStart(6, '0');
+  cin.addEventListener('input', () => { cfg.material.color = parseInt(cin.value.slice(1), 16); scheduleRebuild(); });
+  crow.append(clab, cin, document.createElement('span')); g.appendChild(crow);
+  slider(g, 'roughness', cfg, 'material.roughness', 0, 1, 0.02);
+  slider(g, 'clearcoat', cfg, 'material.clearcoat', 0, 1, 0.02);
+  slider(g, 'cc rough', cfg, 'material.clearcoatRoughness', 0, 1, 0.02);
+  slider(g, 'normal', cfg, 'material.normalScale', 0, 1.5, 0.05);
+  slider(g, 'sheen', cfg, 'material.sheen', 0, 1, 0.02);
+  slider(g, 'env', cfg, 'material.envMapIntensity', 0, 2, 0.05);
+
+  section('config json');
+  const hint = document.createElement('div'); hint.className = 'hint';
+  hint.textContent = 'Tweak, then Copy and paste this back to me to bake in as the new defaults.';
+  panel.appendChild(hint);
+  const copyBtn = document.createElement('button'); copyBtn.textContent = 'Copy config';
+  copyBtn.addEventListener('click', () => { navigator.clipboard?.writeText(json.value); copyBtn.textContent = 'Copied!'; setTimeout(() => copyBtn.textContent = 'Copy config', 1200); });
+  panel.appendChild(copyBtn);
+  json = document.createElement('textarea'); json.id = 'json'; json.readOnly = true; panel.appendChild(json);
+}
+let json;
+function refreshJson() { if (json) json.value = JSON.stringify(cfg, null, 2); }
+
+// ---- top controls ----
+document.getElementById('side').addEventListener('change', (e) => { side = e.target.value; rebuild(); });
+document.getElementById('ballBtn').addEventListener('click', (e) => {
+  ballOn = !ballOn;
+  if (ballOn) scene.add(ball); else scene.remove(ball);
+  e.target.textContent = ballOn ? 'Hide ball' : 'Show ball';
+});
+document.getElementById('resetBtn').addEventListener('click', () => {
+  Object.assign(cfg, structuredClone(DEFAULTS));
+  buildPanel(); rebuild();
+});
+const gripEl = document.getElementById('grip'), gripValEl = document.getElementById('gripVal');
+gripEl.addEventListener('input', () => { gripVal = parseFloat(gripEl.value); gripValEl.textContent = gripVal.toFixed(2); rig?.setGrip(gripVal); });
+
+// ---- loop ----
+buildPanel();
+resize();
+rebuild();
+let last = performance.now();
+function loop() {
+  const now = performance.now(); const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  controls.update();
+  rig?.update(dt, ballOn ? ball : null);
+  renderer.render(scene, cam);
+  window.__ready = true;
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
