@@ -42,9 +42,9 @@ export class Game {
   // LIVES/MAKES stacked on the right.
   _buildHUD3D() {
     const group = new THREE.Group();
-    group.position.set(0, 5.6, -2);
+    group.position.set(0, 6.7, -2);
     this.scene.add(group);
-    const W = 1.9, H = 1.12, vGap = 0.16, colX = 2.0;
+    const W = 1.9, H = 1.12, vGap = 0.16, colX = 1.05;
     const columns = [
       { x: -colX, items: [
         { key: 'level', label: 'LEVEL', color: '#ffffff' },

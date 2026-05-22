@@ -210,13 +210,14 @@ export class Player {
     const center = new THREE.Vector3(); bb.getCenter(center);
     geo.translate(-center.x, -center.y, -center.z);
     const s = 0.3 / Math.max(size.x, size.y, size.z); // target max dimension
-    geo.scale(s, s, s);
+    const sx = s * 0.9, sz = s * 0.9; // 10% thinner in width and depth
+    geo.scale(sx, s, sz);
 
     const hand = new THREE.Group();
     const body = new THREE.Mesh(geo, this.gloveMat);
     body.castShadow = true;
     hand.add(body);
-    this._addCuffAndDarts(hand, (size.y * s) / 2, (size.z * s) / 2);
+    this._addCuffAndDarts(hand, (size.y * s) / 2, (size.z * sz) / 2);
     return hand;
   }
 
