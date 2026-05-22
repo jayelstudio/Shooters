@@ -136,25 +136,16 @@ export class Player {
   startFollowThrough() { this.ft = 1; }
 
   // Add the rolled cuff (torus + dark opening) and three darts to a hand group,
-  // sized to the hand's vertical/back extent.
-  _addCuffAndDarts(hand, halfH, backZ) {
-    const cuff = new THREE.Mesh(new THREE.TorusGeometry(halfH * 0.72, halfH * 0.34, 16, 30), this.gloveMat);
-    cuff.position.set(0, -halfH * 1.02, -0.006);
-    cuff.rotation.x = Math.PI / 2 - 0.25;
-    cuff.castShadow = true;
-    hand.add(cuff);
-    const hole = new THREE.Mesh(new THREE.CircleGeometry(halfH * 0.56, 24), this.holeMat);
-    hole.position.set(0, -halfH * 1.12, -0.014);
-    hole.rotation.x = Math.PI / 2 - 0.25;
-    hand.add(hole);
-    const dgeo = new THREE.CapsuleGeometry(0.005, 0.03, 6, 10);
-    const dx = [-0.022, 0, 0.022], dz = [0.2, 0, -0.2];
-    for (let i = 0; i < 3; i++) {
-      const m = new THREE.Mesh(dgeo, this.dartMat);
-      m.position.set(dx[i], halfH * 0.32, backZ + 0.002);
-      m.rotation.set(0, 0, dz[i]);
-      hand.add(m);
-    }
+  // A small teardrop (rounded base + pointed cone), flattened to lie on the glove.
+  _teardrop(mat) {
+    const g = new THREE.Group();
+    const r = 0.0075;
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), mat));
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(r, r * 4.2, 14), mat);
+    cone.position.y = r * 2.3;
+    g.add(cone);
+    g.scale.set(1, 1, 0.35);
+    return g;
   }
 
   // Fuse the palm/fingers/thumb into one smooth surface with metaballs so the
@@ -187,15 +178,15 @@ export class Player {
     // palm slab
     add(0.5, 0.40, 0.5, 0.55); add(0.42, 0.40, 0.5, 0.45); add(0.58, 0.40, 0.5, 0.45);
     add(0.5, 0.45, 0.5, 0.45); add(0.46, 0.44, 0.5, 0.34); add(0.54, 0.44, 0.5, 0.34);
-    // three plump fingers (distinct grooves, rounded tips)
-    const fx = [0.395, 0.5, 0.605];
+    // three fingers, wide spacing for deep grooves
+    const fx = [0.38, 0.5, 0.62];
     const fy = [0.50, 0.555, 0.61, 0.665, 0.715];
-    const fs = [0.17, 0.16, 0.15, 0.13, 0.105];
+    const fs = [0.15, 0.14, 0.13, 0.11, 0.09];
     fx.forEach((x) => fy.forEach((y, i) => add(x, y, 0.5, fs[i])));
-    // thumb (mirrored per hand) angled out and down
-    add(0.5 - side * 0.10, 0.42, 0.52, 0.16);
-    add(0.5 - side * 0.135, 0.46, 0.53, 0.14);
-    add(0.5 - side * 0.165, 0.50, 0.54, 0.11);
+    // thumb (mirrored per hand), bigger and angled out/forward so it reads in the grip
+    add(0.5 - side * 0.12, 0.40, 0.53, 0.2);
+    add(0.5 - side * 0.165, 0.44, 0.55, 0.16);
+    add(0.5 - side * 0.20, 0.485, 0.57, 0.12);
     mc.update();
 
     // Use the MarchingCubes mesh directly (avoid fragile geometry extraction).
@@ -218,7 +209,36 @@ export class Player {
 
     const hand = new THREE.Group();
     hand.add(inner);
-    this._addCuffAndDarts(hand, (size.y * s) / 2, (size.z * sz) / 2);
+
+    // small rolled cuff at the wrist (sized from width, not height)
+    const W = size.x * sx, Hh = size.y * s;
+    const cuffR = W * 0.34, tube = W * 0.13, bottomY = -Hh / 2;
+    const cuff = new THREE.Mesh(new THREE.TorusGeometry(cuffR, tube, 14, 28), this.gloveMat);
+    cuff.position.set(0, bottomY + tube * 0.5, 0);
+    cuff.rotation.x = Math.PI / 2 - 0.2;
+    cuff.castShadow = true;
+    hand.add(cuff);
+    const hole = new THREE.Mesh(new THREE.CircleGeometry(cuffR * 0.8, 22), this.holeMat);
+    hole.position.set(0, bottomY + tube * 0.2, 0.004);
+    hole.rotation.x = Math.PI / 2 - 0.2;
+    hand.add(hole);
+
+    // teardrop darts placed on the actual back surface via raycast
+    hand.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const spots = [[-0.028, 0.03], [0, 0.045], [0.028, 0.03]];
+    const fan = [0.22, 0, -0.22];
+    spots.forEach(([dxv, dyv], i) => {
+      ray.set(new THREE.Vector3(dxv, dyv, 0.6), new THREE.Vector3(0, 0, -1));
+      const hit = ray.intersectObject(mc, false)[0];
+      if (!hit) return;
+      const n = hit.face.normal.clone().transformDirection(mc.matrixWorld).normalize();
+      const d = this._teardrop(this.dartMat);
+      d.position.copy(hit.point).addScaledVector(n, 0.002);
+      d.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+      d.rotateZ(fan[i]);
+      hand.add(d);
+    });
     return hand;
   }
 

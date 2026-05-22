@@ -142,8 +142,7 @@ export class Ball {
     if (this.state === STATE.HELD) {
       this.player.handBallPosition(this.player.pose, this.pos);
       this.mesh.position.copy(this.pos);
-      this.mesh.rotation.x -= dt * 0.3;
-      return;
+      return; // ball stays still in the hands (no idle spin)
     }
     if (this.state === STATE.FLYING) {
       this.flightTime += dt;

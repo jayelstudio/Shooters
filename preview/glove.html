@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8" />
-<style>html,body{margin:0;background:#8a8f96;overflow:hidden}#c{display:block;margin:0 auto}</style>
+<style>html,body{margin:0;background:#9aa0a8;overflow:hidden}#c{display:block;margin:0 auto}</style>
 <script type="importmap">
 { "imports": {
   "three": "/node_modules/three/build/three.module.js",
@@ -11,54 +11,97 @@
 </script>
 </head>
 <body>
-<canvas id="c" width="640" height="640"></canvas>
+<canvas id="c" width="700" height="700"></canvas>
 <script type="module">
 import * as THREE from 'three';
 import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
 
 const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
-renderer.setSize(640, 640, false);
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.setSize(700, 700, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x8a8f96);
-const cam = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
-cam.position.set(0.18, 0.05, 0.95);
-cam.lookAt(0, 0.02, 0);
-scene.add(new THREE.AmbientLight(0xffffff, 0.65));
-const key = new THREE.DirectionalLight(0xffffff, 1.5); key.position.set(0.5, 1, 0.8); scene.add(key);
-const fill = new THREE.DirectionalLight(0xbcd0ff, 0.5); fill.position.set(-0.8, 0.2, 0.4); scene.add(fill);
+scene.background = new THREE.Color(0x9aa0a8);
+const cam = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+cam.position.set(0, 0.02, 0.95); cam.lookAt(0, 0, 0);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(0.4, 0.9, 0.8); scene.add(key);
+const fill = new THREE.DirectionalLight(0xbcd0ff, 0.45); fill.position.set(-0.7, 0.1, 0.5); scene.add(fill);
 
 const gloveMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.82, metalness: 0 });
-const dartMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7 });
+const dartMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 });
+const holeMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a, side: THREE.DoubleSide });
 
-// ---- metaball layout under test (edit window.BALLS via query or here) ----
-function buildHand(side, balls, res, iso) {
-  const mc = new MarchingCubes(res, gloveMat, true, false, 120000);
-  mc.isolation = iso;
-  mc.reset();
-  for (const b of balls) mc.addBall(b[0], b[1], b[2], b[3], 12);
+function teardrop(mat) {
+  const g = new THREE.Group();
+  const r = 0.0075;
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), mat);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(r, r * 4.2, 14), mat);
+  cone.position.y = r * 2.3;
+  g.add(ball, cone);
+  g.scale.set(1, 1, 0.35); // flatten against the surface
+  return g;
+}
+
+function buildHand(side) {
+  const mc = new MarchingCubes(80, gloveMat, true, false, 120000);
+  mc.isolation = 80; mc.reset();
+  const add = (x, y, z, s) => mc.addBall(x, y, z, s, 12);
+  // palm slab
+  add(0.5, 0.40, 0.5, 0.55); add(0.42, 0.40, 0.5, 0.45); add(0.58, 0.40, 0.5, 0.45);
+  add(0.5, 0.45, 0.5, 0.45); add(0.46, 0.44, 0.5, 0.34); add(0.54, 0.44, 0.5, 0.34);
+  // three fingers (wider spacing -> deeper grooves)
+  const fx = [0.38, 0.5, 0.62]; const fy = [0.50, 0.555, 0.61, 0.665, 0.715]; const fs = [0.15, 0.14, 0.13, 0.11, 0.09];
+  fx.forEach((x) => fy.forEach((y, i) => add(x, y, 0.5, fs[i])));
+  // thumb (bigger, angled out/forward so it reads in the grip)
+  add(0.5 - side * 0.12, 0.40, 0.53, 0.2);
+  add(0.5 - side * 0.165, 0.44, 0.55, 0.16);
+  add(0.5 - side * 0.20, 0.485, 0.57, 0.12);
   mc.update();
-  const geo = mc.geometry;
-  geo.computeBoundingBox();
-  const bb = geo.boundingBox;
-  const size = new THREE.Vector3(); bb.getSize(size);
+
+  const geo = mc.geometry; geo.computeBoundingBox();
+  const bb = geo.boundingBox; const size = new THREE.Vector3(); bb.getSize(size);
   const center = new THREE.Vector3(); bb.getCenter(center);
   const s = 0.3 / Math.max(size.x, size.y, size.z);
+  const sx = s * 0.765, sz = s * 0.765;
   mc.position.set(-center.x, -center.y, -center.z);
-  const inner = new THREE.Group(); inner.add(mc);
-  inner.scale.set(s * 0.765, s, s * 0.765);
+  const inner = new THREE.Group(); inner.add(mc); inner.scale.set(sx, s, sz);
   const hand = new THREE.Group(); hand.add(inner);
+
+  const W = size.x * sx, Hh = size.y * s, D = size.z * sz;
+  // small rolled cuff at the wrist (sized from width, not height)
+  const cuffR = W * 0.34, tube = W * 0.13, bottomY = -Hh / 2;
+  const cuff = new THREE.Mesh(new THREE.TorusGeometry(cuffR, tube, 14, 28), gloveMat);
+  cuff.position.set(0, bottomY + tube * 0.5, 0); cuff.rotation.x = Math.PI / 2 - 0.2;
+  hand.add(cuff);
+  const hole = new THREE.Mesh(new THREE.CircleGeometry(cuffR * 0.8, 22), holeMat);
+  hole.position.set(0, bottomY + tube * 0.2, 0.004); hole.rotation.x = Math.PI / 2 - 0.2;
+  hand.add(hole);
+
+  // teardrop darts placed on the actual back surface via raycast
+  hand.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster();
+  const spots = [[-0.028, 0.03], [0, 0.045], [0.028, 0.03]];
+  const fan = [0.22, 0, -0.22];
+  spots.forEach(([dxv, dyv], i) => {
+    ray.set(new THREE.Vector3(dxv, dyv, 0.6), new THREE.Vector3(0, 0, -1));
+    const hit = ray.intersectObject(mc, false)[0];
+    if (!hit) return;
+    const d = teardrop(dartMat);
+    d.position.copy(hit.point).addScaledVector(hit.face.normal.clone().transformDirection(mc.matrixWorld).normalize(), 0.002);
+    const n = hit.face.normal.clone().transformDirection(mc.matrixWorld).normalize();
+    d.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+    d.rotateZ(fan[i]);
+    hand.add(d);
+  });
   return hand;
 }
 
-const params = JSON.parse(decodeURIComponent(new URLSearchParams(location.search).get('p') || 'null'));
-const res = (params && params.res) || 64;
-const iso = (params && params.iso) || 80;
-const balls = (params && params.balls) || [];
-
-const hand = buildHand(1, balls, res, iso);
-hand.rotation.y = -0.25; // slight 3/4 so we can see depth
+const params = new URLSearchParams(location.search);
+const view = params.get('view') || 'grip';
+const hand = buildHand(1);
+hand.scale.setScalar(0.8);
+if (view === 'grip') { hand.rotation.set(-0.13, 0.4, 0.05); }
+else { hand.rotation.set(-0.1, -0.3, 0); }
 scene.add(hand);
 
 renderer.render(scene, cam);

@@ -310,29 +310,32 @@ export class Game {
   // Bright orange arrow beside the backboard, or "SHOOT!" once on the spot.
   // Positions are projected from the backboard's 3D location each frame.
   _updateCues() {
+    const arrow = $('dir-arrow');
     const cue = $('shoot-cue');
-    const left = $('btn-left'), right = $('btn-right');
-    $('dir-arrow').classList.add('hidden'); // direction shown via the move buttons now
     if (this.state !== 'ready') {
+      arrow.classList.add('hidden');
       cue.classList.add('hidden');
-      left.style.opacity = '0.6';
-      right.style.opacity = '0.6';
       return;
     }
-    const onSpot = this.player.index === this.targetIndex;
-    const goRight = this.targetIndex > this.player.index;
-    // dim both, light the one pointing toward the next shot's spot
-    left.style.opacity = (!onSpot && !goRight) ? '1' : '0.6';
-    right.style.opacity = (!onSpot && goRight) ? '1' : '0.6';
-    if (onSpot) {
-      const W = window.innerWidth, H = window.innerHeight;
-      const bb = CONFIG.backboard;
+    const W = window.innerWidth, H = window.innerHeight;
+    const bb = CONFIG.backboard;
+    if (this.player.index === this.targetIndex) {
+      // on the spot: orange "SHOOT!" cue above the backboard
+      arrow.classList.add('hidden');
       const p = this._project(0, bb.top + 0.15, bb.z, W, H);
       cue.style.left = p.x + 'px';
       cue.style.top = (p.y - 10) + 'px';
       cue.classList.remove('hidden');
     } else {
+      // off the spot: orange arrow beside the backboard pointing the way to move
       cue.classList.add('hidden');
+      const goRight = this.targetIndex > this.player.index;
+      arrow.textContent = goRight ? '▶' : '◀';
+      const midY = (bb.top + bb.bottom) / 2;
+      const e = this._project(goRight ? bb.halfW : -bb.halfW, midY, bb.z, W, H);
+      arrow.style.left = (e.x + (goRight ? 52 : -52)) + 'px';
+      arrow.style.top = e.y + 'px';
+      arrow.classList.remove('hidden');
     }
   }
 
