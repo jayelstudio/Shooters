@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>html,body{margin:0;background:#8a8f96;overflow:hidden}#c{display:block;margin:0 auto}</style>
+<script type="importmap">
+{ "imports": {
+  "three": "/node_modules/three/build/three.module.js",
+  "three/addons/": "/node_modules/three/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<canvas id="c" width="640" height="640"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
+
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+renderer.setSize(640, 640, false);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8a8f96);
+const cam = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+cam.position.set(0.18, 0.05, 0.95);
+cam.lookAt(0, 0.02, 0);
+scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+const key = new THREE.DirectionalLight(0xffffff, 1.5); key.position.set(0.5, 1, 0.8); scene.add(key);
+const fill = new THREE.DirectionalLight(0xbcd0ff, 0.5); fill.position.set(-0.8, 0.2, 0.4); scene.add(fill);
+
+const gloveMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.82, metalness: 0 });
+const dartMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7 });
+
+// ---- metaball layout under test (edit window.BALLS via query or here) ----
+function buildHand(side, balls, res, iso) {
+  const mc = new MarchingCubes(res, gloveMat, true, false, 120000);
+  mc.isolation = iso;
+  mc.reset();
+  for (const b of balls) mc.addBall(b[0], b[1], b[2], b[3], 12);
+  mc.update();
+  const geo = mc.geometry;
+  geo.computeBoundingBox();
+  const bb = geo.boundingBox;
+  const size = new THREE.Vector3(); bb.getSize(size);
+  const center = new THREE.Vector3(); bb.getCenter(center);
+  const s = 0.3 / Math.max(size.x, size.y, size.z);
+  mc.position.set(-center.x, -center.y, -center.z);
+  const inner = new THREE.Group(); inner.add(mc);
+  inner.scale.set(s * 0.765, s, s * 0.765);
+  const hand = new THREE.Group(); hand.add(inner);
+  return hand;
+}
+
+const params = JSON.parse(decodeURIComponent(new URLSearchParams(location.search).get('p') || 'null'));
+const res = (params && params.res) || 64;
+const iso = (params && params.iso) || 80;
+const balls = (params && params.balls) || [];
+
+const hand = buildHand(1, balls, res, iso);
+hand.rotation.y = -0.25; // slight 3/4 so we can see depth
+scene.add(hand);
+
+renderer.render(scene, cam);
+requestAnimationFrame(() => { renderer.render(scene, cam); window.__ready = true; });
+</script>
+</body>
+</html>

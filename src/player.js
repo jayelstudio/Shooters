@@ -180,28 +180,22 @@ export class Player {
   }
 
   _makeBlendedHand(MarchingCubes, side) {
-    const mc = new MarchingCubes(64, this.gloveMat, true, false, 80000);
+    const mc = new MarchingCubes(80, this.gloveMat, true, false, 120000);
     mc.isolation = 80;
     mc.reset();
-    const SUB = 12;
-    const add = (x, y, z, s) => mc.addBall(x, y, z, s, SUB);
-    // solid palm mass (one continuous blob)
-    add(0.5, 0.42, 0.5, 0.95);
-    add(0.43, 0.42, 0.5, 0.78); add(0.57, 0.42, 0.5, 0.78);
-    add(0.5, 0.48, 0.5, 0.82);
-    // knuckle ridge: fuses the finger bases into the palm so it's one piece
-    add(0.44, 0.53, 0.5, 0.72); add(0.5, 0.53, 0.5, 0.72); add(0.56, 0.53, 0.5, 0.72);
-    // three fingers: bases overlap the ridge (merged), tips taper (distinct grooves)
-    const fxs = [0.44, 0.5, 0.56];
-    fxs.forEach((fx) => {
-      add(fx, 0.585, 0.5, 0.6);
-      add(fx, 0.645, 0.49, 0.48);
-      add(fx, 0.7, 0.475, 0.37);
-    });
-    // thumb merging into the palm on the inner side
-    add(0.5 - side * 0.11, 0.45, 0.52, 0.66);
-    add(0.5 - side * 0.15, 0.49, 0.53, 0.52);
-    add(0.5 - side * 0.18, 0.53, 0.54, 0.4);
+    const add = (x, y, z, s) => mc.addBall(x, y, z, s, 12);
+    // palm slab
+    add(0.5, 0.40, 0.5, 0.55); add(0.42, 0.40, 0.5, 0.45); add(0.58, 0.40, 0.5, 0.45);
+    add(0.5, 0.45, 0.5, 0.45); add(0.46, 0.44, 0.5, 0.34); add(0.54, 0.44, 0.5, 0.34);
+    // three plump fingers (distinct grooves, rounded tips)
+    const fx = [0.395, 0.5, 0.605];
+    const fy = [0.50, 0.555, 0.61, 0.665, 0.715];
+    const fs = [0.17, 0.16, 0.15, 0.13, 0.105];
+    fx.forEach((x) => fy.forEach((y, i) => add(x, y, 0.5, fs[i])));
+    // thumb (mirrored per hand) angled out and down
+    add(0.5 - side * 0.10, 0.42, 0.52, 0.16);
+    add(0.5 - side * 0.135, 0.46, 0.53, 0.14);
+    add(0.5 - side * 0.165, 0.50, 0.54, 0.11);
     mc.update();
 
     // Use the MarchingCubes mesh directly (avoid fragile geometry extraction).
