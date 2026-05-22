@@ -139,7 +139,6 @@ export class Game {
     $('overlay-start').classList.add('hidden');
     this.state = 'ready';
     this.player.setPose(0);
-    this.player.setGrip(0.5);
     this._pickTarget(true);
     this._banner(`Level ${this.level}`, 1.4);
   }
@@ -156,7 +155,6 @@ export class Game {
     $('overlay-over').classList.add('hidden');
     this.ball.holdAtHands();
     this.state = 'ready';
-    this.player.setGrip(0.5);
     this._pickTarget(true);
     this._refreshHUD();
     this._banner(`Level ${this.level}`, 1.4);
@@ -217,7 +215,6 @@ export class Game {
     this.m = 0;
     this.mDir = 1;
     this.player.setPose(1);
-    this.player.setGrip(0.92); // tighten the grip while charging
     $('meter').classList.add('active');
   }
 
@@ -244,7 +241,6 @@ export class Game {
     this.lastFromTarget = this.player.index === this.targetIndex;
     this.ball.shoot(factor, lateral);
     this.player.startFollowThrough();
-    this.player.snapOpen(); // fingers flick open on release
   }
 
   _onMake() {
@@ -425,12 +421,11 @@ export class Game {
       if (this._resetTimer <= 0) {
         this.ball.holdAtHands();
         this.player.setPose(0);
-        this.player.setGrip(0.5); // back to a relaxed hold
         this.state = 'ready';
       }
     }
 
-    this.player.update(dt, this.ball.mesh);
+    this.player.update(dt);
     this.camera.updateMatrixWorld();
     this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert();
     this._updateCues();
