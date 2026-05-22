@@ -42,7 +42,7 @@ export class Game {
   // LIVES/MAKES stacked on the right.
   _buildHUD3D() {
     const group = new THREE.Group();
-    group.position.set(0, 6.7, -2);
+    group.position.set(0, 8.0, -2);
     this.scene.add(group);
     const W = 1.9, H = 1.12, vGap = 0.16, colX = 1.05;
     const columns = [
@@ -310,30 +310,29 @@ export class Game {
   // Bright orange arrow beside the backboard, or "SHOOT!" once on the spot.
   // Positions are projected from the backboard's 3D location each frame.
   _updateCues() {
-    const arrow = $('dir-arrow');
     const cue = $('shoot-cue');
+    const left = $('btn-left'), right = $('btn-right');
+    $('dir-arrow').classList.add('hidden'); // direction shown via the move buttons now
     if (this.state !== 'ready') {
-      arrow.classList.add('hidden');
       cue.classList.add('hidden');
+      left.style.opacity = '0.6';
+      right.style.opacity = '0.6';
       return;
     }
-    const W = window.innerWidth, H = window.innerHeight;
-    const bb = CONFIG.backboard;
-    if (this.player.index === this.targetIndex) {
-      arrow.classList.add('hidden');
+    const onSpot = this.player.index === this.targetIndex;
+    const goRight = this.targetIndex > this.player.index;
+    // dim both, light the one pointing toward the next shot's spot
+    left.style.opacity = (!onSpot && !goRight) ? '1' : '0.6';
+    right.style.opacity = (!onSpot && goRight) ? '1' : '0.6';
+    if (onSpot) {
+      const W = window.innerWidth, H = window.innerHeight;
+      const bb = CONFIG.backboard;
       const p = this._project(0, bb.top + 0.15, bb.z, W, H);
       cue.style.left = p.x + 'px';
       cue.style.top = (p.y - 10) + 'px';
       cue.classList.remove('hidden');
     } else {
       cue.classList.add('hidden');
-      const goRight = this.targetIndex > this.player.index;
-      arrow.textContent = goRight ? '▶' : '◀';
-      const midY = (bb.top + bb.bottom) / 2;
-      const e = this._project(goRight ? bb.halfW : -bb.halfW, midY, bb.z, W, H);
-      arrow.style.left = (e.x + (goRight ? 52 : -52)) + 'px';
-      arrow.style.top = e.y + 'px';
-      arrow.classList.remove('hidden');
     }
   }
 

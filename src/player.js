@@ -183,20 +183,25 @@ export class Player {
     const mc = new MarchingCubes(64, this.gloveMat, true, false, 80000);
     mc.isolation = 80;
     mc.reset();
-    const SUB = 12, S = 0.52;
-    const add = (x, y, z, s = S) => mc.addBall(x, y, z, s, SUB);
-    // palm mass
-    add(0.5, 0.43, 0.5, 0.7); add(0.44, 0.42, 0.5, 0.55); add(0.56, 0.42, 0.5, 0.55);
-    add(0.5, 0.49, 0.5, 0.55); add(0.47, 0.46, 0.5, 0.45); add(0.53, 0.46, 0.5, 0.45);
-    // four fingers (columns of balls blending upward)
-    const fxs = [0.415, 0.475, 0.535, 0.595];
+    const SUB = 12;
+    const add = (x, y, z, s) => mc.addBall(x, y, z, s, SUB);
+    // solid palm mass (one continuous blob)
+    add(0.5, 0.42, 0.5, 0.95);
+    add(0.43, 0.42, 0.5, 0.78); add(0.57, 0.42, 0.5, 0.78);
+    add(0.5, 0.48, 0.5, 0.82);
+    // knuckle ridge: fuses the finger bases into the palm so it's one piece
+    add(0.44, 0.53, 0.5, 0.72); add(0.5, 0.53, 0.5, 0.72); add(0.56, 0.53, 0.5, 0.72);
+    // three fingers: bases overlap the ridge (merged), tips taper (distinct grooves)
+    const fxs = [0.44, 0.5, 0.56];
     fxs.forEach((fx) => {
-      add(fx, 0.55, 0.5, 0.42); add(fx, 0.61, 0.49, 0.38); add(fx, 0.665, 0.475, 0.34);
+      add(fx, 0.585, 0.5, 0.6);
+      add(fx, 0.645, 0.49, 0.48);
+      add(fx, 0.7, 0.475, 0.37);
     });
-    // thumb on the inner side
-    add(0.5 - side * 0.10, 0.44, 0.52, 0.5);
-    add(0.5 - side * 0.14, 0.48, 0.53, 0.42);
-    add(0.5 - side * 0.17, 0.52, 0.54, 0.36);
+    // thumb merging into the palm on the inner side
+    add(0.5 - side * 0.11, 0.45, 0.52, 0.66);
+    add(0.5 - side * 0.15, 0.49, 0.53, 0.52);
+    add(0.5 - side * 0.18, 0.53, 0.54, 0.4);
     mc.update();
 
     const geo = typeof mc.generateBufferGeometry === 'function'
@@ -210,7 +215,7 @@ export class Player {
     const center = new THREE.Vector3(); bb.getCenter(center);
     geo.translate(-center.x, -center.y, -center.z);
     const s = 0.3 / Math.max(size.x, size.y, size.z); // target max dimension
-    const sx = s * 0.9, sz = s * 0.9; // 10% thinner in width and depth
+    const sx = s * 0.765, sz = s * 0.765; // ~25% thinner total in width and depth
     geo.scale(sx, s, sz);
 
     const hand = new THREE.Group();
