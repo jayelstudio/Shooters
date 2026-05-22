@@ -14,7 +14,7 @@
 <canvas id="c"></canvas>
 <script type="module">
 import * as THREE from 'three';
-import { buildHand, DEFAULT_P } from './glovebuild.js';
+import { buildHand, DEFAULT_P } from '../src/glovebuild.js';
 
 const params = new URLSearchParams(location.search);
 const view = params.get('view') || 'q';
@@ -33,8 +33,8 @@ if (view === 'pov') {
   const ball = new THREE.Mesh(new THREE.SphereGeometry(0.12, 32, 24), new THREE.MeshStandardMaterial({ color: 0xd4641d, roughness: 0.6 }));
   ball.position.set(0, -0.38, -0.71); scene.add(ball);
   const by = -0.38, bz = -0.71, tiltOver = -0.35;
-  const L = buildHand(DEFAULT_P, -1); L.scale.setScalar(0.85); L.position.set(-0.12, by - 0.02, bz + 0.05); L.rotation.set(tiltOver, -1.05, -0.08); scene.add(L);
-  const R = buildHand(DEFAULT_P, 1); R.scale.setScalar(0.85); R.position.set(0.06, by - 0.03, bz + 0.13); R.rotation.set(tiltOver + 0.18, 0.35, 0.05); scene.add(R);
+  const L = buildHand(DEFAULT_P, -1); L.scale.setScalar(0.85); L.position.set(-0.12, by - 0.02, bz + 0.05); L.rotation.set(tiltOver, -1.15, -0.08); scene.add(L);
+  const R = buildHand(DEFAULT_P, 1); R.scale.setScalar(0.85); R.position.set(0.045, by - 0.03, bz + 0.155); R.rotation.set(tiltOver + 0.22, 0.4, 0.05); scene.add(R);
 } else {
   cam = new THREE.PerspectiveCamera(38, 1, 0.1, 100); cam.position.set(0, 0.04, 0.92); cam.lookAt(0, 0.02, 0);
   const hand = buildHand(DEFAULT_P, 1); hand.rotation.set(-0.05, view === 'grip' ? 0.4 : -0.35, 0); scene.add(hand);

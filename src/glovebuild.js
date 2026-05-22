@@ -3,12 +3,12 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 
 // Single source of truth for the glove shape (used by preview, tuner, and game).
 export const DEFAULT_P = {
-  palmW: 0.135, palmH: 0.12, palmD: 0.072, palmR: 0.032,
-  fingerCount: 3, fingerLen: 0.115, fingerRad: 0.031, fingerSpread: 0.05, fingerFan: 0.1, fingerTilt: -0.12,
-  knuckleRad: 0.033,
-  thumbLen: 0.075, thumbRad: 0.034, thumbAngle: 0.8, thumbX: 0.04, thumbY: -0.005,
-  cuffR: 0.062, cuffTube: 0.016,
-  dartLen: 0.058, dartRad: 0.0062, dartSpread: 0.027, dartY: 0.012, dartFan: 0.16,
+  palmW: 0.128, palmH: 0.103, palmD: 0.092, palmR: 0.034,
+  fingerCount: 3, fingerLen: 0.075, fingerRad: 0.022, fingerSpread: 0.041, fingerFan: 0.1, fingerTilt: -0.2,
+  knuckleRad: 0.032,
+  thumbLen: 0.051, thumbRad: 0.025, thumbAngle: 0.79, thumbX: 0.06, thumbY: 0.001,
+  cuffR: 0.05, cuffTube: 0.014,
+  dartLen: 0.03, dartRad: 0.006, dartSpread: 0.018, dartY: 0.011, dartFan: 0.16,
 };
 
 const glove = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.8, metalness: 0 });
