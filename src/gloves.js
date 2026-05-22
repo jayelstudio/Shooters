@@ -8,9 +8,14 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 
 const FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinky'];
 
-const gloveMat = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.72, metalness: 0 });
+// Soft molded-vinyl glove: clearcoat sheen + environment reflections read far
+// more "real" than flat matte. (Uses scene.environment for reflections.)
+const gloveMat = new THREE.MeshPhysicalMaterial({
+  color: 0xf3f3f3, roughness: 0.48, metalness: 0,
+  clearcoat: 0.6, clearcoatRoughness: 0.45, envMapIntensity: 0.9,
+  sheen: 0.3, sheenColor: new THREE.Color(0xffffff), sheenRoughness: 0.6,
+});
 const holeMat = new THREE.MeshBasicMaterial({ color: 0x161616, side: THREE.DoubleSide });
-const seam = new THREE.MeshStandardMaterial({ color: 0xdcdcdc, roughness: 0.7 });
 
 const mk = (geo, mat = gloveMat) => { const m = new THREE.Mesh(geo, mat); m.castShadow = true; return m; };
 
@@ -26,10 +31,13 @@ class FingerBone {
     this.root.add(this.mid);
     this.mid.position.y = seg;
     // proximal segment on root, knuckle bump at the joint, distal on mid
-    const prox = mk(new THREE.CapsuleGeometry(rad, seg, 8, 14));
+    // base fillet blends the finger into the palm/knuckle so there's no seam
+    const baseFill = mk(new THREE.SphereGeometry(rad * 1.12, 12, 10));
+    this.root.add(baseFill);
+    const prox = mk(new THREE.CapsuleGeometry(rad, seg * 1.1, 8, 14));
     prox.position.y = seg / 2;
     this.root.add(prox);
-    const knob = mk(new THREE.SphereGeometry(rad * 1.03, 12, 10));
+    const knob = mk(new THREE.SphereGeometry(rad * 1.05, 12, 10));
     knob.position.y = seg;
     this.root.add(knob);
     const dist = mk(new THREE.CapsuleGeometry(rad * 0.9, seg * 0.92, 8, 14));
