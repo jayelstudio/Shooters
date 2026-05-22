@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG, D2R } from './config.js';
-import { buildHand, DEFAULT_P } from './glovebuild.js';
+import { buildHand, DEFAULT_P, setHandCurl } from './glovebuild.js';
 
 // Computes the 5 shooting-spot positions along the 3pt arc.
 export function buildSpots() {
@@ -63,6 +63,11 @@ export class Player {
     // wrist rotated back a touch; gooseneck snap up/forward on release
     this.rightHand.position.set(0.045, by - 0.03 + ft * 0.20, bz + 0.155 - ft * 0.04);
     this.rightHand.rotation.set(tiltOver + 0.22 + ft * 1.2, 0.4 - ft * 0.4, 0.05 - ft * 0.2);
+
+    // fingers wrap the ball at rest and flick straighter on the release snap
+    const curl = 1 - 0.55 * ft;
+    setHandCurl(this.leftHand, DEFAULT_P, curl);
+    setHandCurl(this.rightHand, DEFAULT_P, curl);
   }
 
   // Kick off the release follow-through (decays back to 0 in update()).
