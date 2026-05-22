@@ -35,24 +35,34 @@ function normalMap() { return _normalMap || (_normalMap = leatherNormal()); }
 // All tunable parameters. The tuner edits a deep clone of this and rebuilds.
 // Field space is [0,1]; y is up (fingers point +y), x across, z depth.
 export const DEFAULTS = {
-  res: 80,
-  isolation: 86,
+  res: 112,
+  isolation: 98,
   subtract: 12,
   fingerN: 14,            // balls per finger
-  taperA: 0.10,           // linear taper toward tip
-  taperB: 0.20,           // quadratic taper toward tip
-  knuckleStr: 0.045,      // ridge that fuses finger bases (low = fingers split early)
-  webStr: 0.07,           // thumb webbing fill
+  taperA: 0.21,           // linear taper toward tip
+  taperB: 0.26,           // quadratic taper toward tip
+  knuckleStr: 0.075,      // ridge that fuses finger bases (low = fingers split early)
+  webStr: 0.04,           // thumb webbing fill
   curlRoot: 1.05,
   curlMid: 1.25,
   skinR: 0.22,            // skin-weight falloff radius (out space)
+  // palm slab + wrist stump (the body of the hand below the knuckles)
+  palm: {
+    str: 0.26,           // central palm mass
+    width: 0.13,         // half-width (side balls offset from center)
+    y: 0.41,             // palm vertical center
+    top: 0.46,           // upper palm (blends into the knuckles)
+    wristStr: 0.24,      // wrist stump mass
+    wristY: 0.34,        // upper wrist y
+    wristLen: 0.05,      // how far the wrist extends down
+  },
   // finger layout. dir = normalize(sin(fanX), cos(fanX), fanZ); base z = 0.5 + dz
   fingers: {
-    index:  { x: 0.36,  base: 0.50,  len: 0.32, str: 0.078, fanX: 0.12,  fanZ: 0.0,  dz: 0.0 },
-    middle: { x: 0.46,  base: 0.50,  len: 0.35, str: 0.080, fanX: 0.03,  fanZ: 0.0,  dz: 0.0 },
-    ring:   { x: 0.56,  base: 0.50,  len: 0.31, str: 0.078, fanX: -0.06, fanZ: 0.0,  dz: 0.0 },
-    pinky:  { x: 0.655, base: 0.485, len: 0.25, str: 0.068, fanX: -0.16, fanZ: 0.0,  dz: 0.0 },
-    thumb:  { x: 0.275, base: 0.40,  len: 0.24, str: 0.090, fanX: 0.95,  fanZ: 0.45, dz: 0.06 },
+    index:  { x: 0.38,  base: 0.49,  len: 0.32,  str: 0.060, fanX: -0.08, fanZ: -0.02, dz: 0.0 },
+    middle: { x: 0.46,  base: 0.50,  len: 0.35,  str: 0.074, fanX: 0.03,  fanZ: 0.0,   dz: 0.0 },
+    ring:   { x: 0.555, base: 0.50,  len: 0.31,  str: 0.060, fanX: -0.02, fanZ: 0.0,   dz: 0.0 },
+    pinky:  { x: 0.635, base: 0.485, len: 0.225, str: 0.046, fanX: 0.02,  fanZ: 0.0,   dz: 0.0 },
+    thumb:  { x: 0.345, base: 0.40,  len: 0.20,  str: 0.064, fanX: -0.42, fanZ: 0.20,  dz: -0.01 },
   },
   material: {
     color: 0xeeebe3, roughness: 0.62, clearcoat: 0.25, clearcoatRoughness: 0.5,
@@ -101,21 +111,28 @@ export class GloveRig {
     });
     this.material = mat;
 
-    const mc = new MarchingCubes(cfg.res, mat, true, false, 360000);
+    const mc = new MarchingCubes(cfg.res, mat, true, false, 900000);
     mc.isolation = cfg.isolation;
     mc.reset();
     const SUB = cfg.subtract;
     const add = (x, y, z, s) => mc.addBall(x, y, z, s, SUB);
 
     // palm slab (rounded, ends at the wrist - no cuff)
-    add(0.5, 0.40, 0.5, 0.2); add(0.40, 0.41, 0.5, 0.15); add(0.60, 0.41, 0.5, 0.15);
-    add(0.46, 0.40, 0.5, 0.13); add(0.54, 0.40, 0.5, 0.13);
-    add(0.5, 0.45, 0.5, 0.10);
-    add(0.5, 0.34, 0.5, 0.18);   // rounded wrist end
-    add(0.5, 0.29, 0.5, 0.14);
+    const P = cfg.palm;
+    add(0.5, P.y, 0.5, P.str);
+    add(0.5 - P.width, P.y + 0.01, 0.5, P.str * 0.72);
+    add(0.5 + P.width, P.y + 0.01, 0.5, P.str * 0.72);
+    add(0.5 - P.width * 0.5, P.y, 0.5, P.str * 0.62);
+    add(0.5 + P.width * 0.5, P.y, 0.5, P.str * 0.62);
+    add(0.5, P.top, 0.5, P.str * 0.45);          // upper palm, blends to knuckles
+    // wrist stump (wide + rounded, ends at the wrist)
+    add(0.5, P.wristY, 0.5, P.wristStr);
+    add(0.5 - P.width * 0.5, P.wristY, 0.5, P.wristStr * 0.72);
+    add(0.5 + P.width * 0.5, P.wristY, 0.5, P.wristStr * 0.72);
+    add(0.5, P.wristY - P.wristLen, 0.5, P.wristStr * 0.95);
     // knuckle ridge across the four finger bases (low strength so fingers split early)
     [cfg.fingers.index.x, cfg.fingers.middle.x, cfg.fingers.ring.x, cfg.fingers.pinky.x]
-      .forEach((x) => add(x, 0.485, 0.5, cfg.knuckleStr));
+      .forEach((x) => add(x, P.top + 0.025, 0.5, cfg.knuckleStr));
 
     // bone rest endpoints in field space, recorded for skinning + skeleton
     const segs = {}; // name -> { root, mid, tip }

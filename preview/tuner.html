@@ -140,6 +140,16 @@ function buildPanel() {
   slider(g, 'taper B', cfg, 'taperB', 0, 0.6, 0.01);
   slider(g, 'skin R', cfg, 'skinR', 0.12, 0.35, 0.01);
 
+  section('palm + wrist');
+  g = group();
+  slider(g, 'palm mass', cfg, 'palm.str', 0.10, 0.40, 0.005);
+  slider(g, 'palm width', cfg, 'palm.width', 0.05, 0.22, 0.005);
+  slider(g, 'palm y', cfg, 'palm.y', 0.32, 0.48, 0.005);
+  slider(g, 'palm top', cfg, 'palm.top', 0.40, 0.52, 0.005);
+  slider(g, 'wrist mass', cfg, 'palm.wristStr', 0.08, 0.35, 0.005);
+  slider(g, 'wrist y', cfg, 'palm.wristY', 0.25, 0.40, 0.005);
+  slider(g, 'wrist len', cfg, 'palm.wristLen', 0, 0.20, 0.005);
+
   for (const name of ['thumb', 'index', 'middle', 'ring', 'pinky']) {
     section(name);
     g = group();
