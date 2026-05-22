@@ -66,12 +66,12 @@ export class Player {
       // plump rounded hand mass (back +z faces camera, palm -z toward the ball)
       addTo(hand, new THREE.SphereGeometry(0.062, 24, 18), [0, 0, 0], null, [1.3, 1.18, 0.74]);
 
-      // four plump fingers, bases sunk into the hand, gentle cup curl + slight fan
-      const fx = [-0.041, -0.0135, 0.0135, 0.041];
-      for (let i = 0; i < 4; i++) {
+      // three plump fingers, bases sunk into the hand, gentle cup curl + slight fan
+      const fx = [-0.032, 0, 0.032];
+      for (let i = 0; i < 3; i++) {
         const f = makeFinger(fingerGeo);
         f.position.set(fx[i], 0.055, 0.005);
-        f.rotation.set(-0.22, 0, -Math.sign(fx[i]) * (0.12 + Math.abs(i - 1.5) * 0.05));
+        f.rotation.set(-0.22, 0, -Math.sign(fx[i]) * (0.12 + Math.abs(i - 1) * 0.05));
         hand.add(f);
       }
 
@@ -204,24 +204,26 @@ export class Player {
     add(0.5 - side * 0.18, 0.53, 0.54, 0.4);
     mc.update();
 
-    const geo = typeof mc.generateBufferGeometry === 'function'
-      ? mc.generateBufferGeometry()
-      : (typeof mc.generateGeometry === 'function' ? mc.generateGeometry() : null);
-    if (!geo || !geo.attributes.position || geo.attributes.position.count === 0) return null;
-    geo.computeVertexNormals();
+    // Use the MarchingCubes mesh directly (avoid fragile geometry extraction).
+    const geo = mc.geometry;
     geo.computeBoundingBox();
     const bb = geo.boundingBox;
+    if (!bb) return null;
     const size = new THREE.Vector3(); bb.getSize(size);
     const center = new THREE.Vector3(); bb.getCenter(center);
-    geo.translate(-center.x, -center.y, -center.z);
-    const s = 0.3 / Math.max(size.x, size.y, size.z); // target max dimension
-    const sx = s * 0.765, sz = s * 0.765; // ~25% thinner total in width and depth
-    geo.scale(sx, s, sz);
+    const maxd = Math.max(size.x, size.y, size.z);
+    if (!(maxd > 0) || !isFinite(maxd)) return null;
+    const s = 0.3 / maxd;            // target max dimension
+    const sx = s * 0.765, sz = s * 0.765; // ~25% thinner in width and depth
+
+    mc.position.set(-center.x, -center.y, -center.z);
+    mc.castShadow = true;
+    const inner = new THREE.Group();
+    inner.add(mc);
+    inner.scale.set(sx, s, sz);
 
     const hand = new THREE.Group();
-    const body = new THREE.Mesh(geo, this.gloveMat);
-    body.castShadow = true;
-    hand.add(body);
+    hand.add(inner);
     this._addCuffAndDarts(hand, (size.y * s) / 2, (size.z * sz) / 2);
     return hand;
   }
