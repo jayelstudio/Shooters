@@ -1,6 +1,6 @@
 // Buckets service worker — offline support.
 // Bump CACHE to force clients to fetch fresh copies on next load.
-const CACHE = 'buckets-v3';
+const CACHE = 'buckets-v4';
 
 // App shell (same-origin). Paths are relative to the SW location (repo root).
 const LOCAL = [
