@@ -15,6 +15,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { environment } from '../src/materials.js';
 
 const params = new URLSearchParams(location.search);
@@ -31,20 +32,35 @@ const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(0.4, 0.9
 const fill = new THREE.DirectionalLight(0xbcd0ff, 0.45); fill.position.set(-0.7, 0.1, 0.5); scene.add(fill);
 const cam = new THREE.PerspectiveCamera(40, 1, 0.01, 100); cam.position.set(0, 0, 0.6); cam.lookAt(0, 0, 0);
 
+const mode = params.get('mode') || 'toon'; // 'raw' | 'toon'
+const seamScale = parseFloat(params.get('seamScale') ?? '1');
+
 const ramp = new Uint8Array([195, 230, 255]);
 const grad = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
 grad.needsUpdate = true; grad.minFilter = grad.magFilter = THREE.NearestFilter;
-const bodyMat = new THREE.MeshToonMaterial({ color: 0xd4641d, gradientMap: grad, emissive: 0xd4641d, emissiveIntensity: 0.28 });
-const seamMat = new THREE.MeshToonMaterial({ color: 0x140f0b, gradientMap: grad });
 
-const loader = new OBJLoader();
+const mtl = await new MTLLoader().loadAsync('../Basket Ball.mtl');
+mtl.preload();
+const loader = new OBJLoader(); loader.setMaterials(mtl);
 const obj = await loader.loadAsync('../buckets-ball.obj');
 const names = [];
+const toToon = (m) => {
+  const col = (m && m.color) ? m.color.clone() : new THREE.Color(0xd4641d);
+  const lum = col.r * 0.299 + col.g * 0.587 + col.b * 0.114;
+  const body = lum > 0.05;
+  if (body) col.multiplyScalar(1.35); // brighten the orange
+  return new THREE.MeshToonMaterial({
+    color: col, gradientMap: grad,
+    emissive: body ? col.clone() : new THREE.Color(0),
+    emissiveIntensity: body ? 0.3 : 0,
+  });
+};
 obj.traverse((o) => {
   if (!o.isMesh) return;
-  names.push(o.material && o.material.name);
-  const n = o.material && o.material.name;
-  o.material = (n === 'Material.008') ? seamMat : bodyMat;
+  names.push(Array.isArray(o.material) ? o.material.map((m) => m.name).join(',') : (o.material && o.material.name));
+  if (mode === 'toon') {
+    o.material = Array.isArray(o.material) ? o.material.map(toToon) : toToon(o.material);
+  }
 });
 window.__names = names;
 

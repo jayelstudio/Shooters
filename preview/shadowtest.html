@@ -14,7 +14,8 @@
 <canvas id="c"></canvas>
 <script type="module">
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { buildHand, DEFAULT_P, setHandCurl } from '../src/glovebuild.js';
 import { environment, ballTextures } from '../src/materials.js';
 
@@ -41,16 +42,24 @@ cam.position.set(0, 0, 0); cam.lookAt(0, -0.34, -0.71);
 const r = 0.12;
 const ballPos = new THREE.Vector3(0, -0.38, -0.71);
 const ballGroup = new THREE.Group(); ballGroup.position.copy(ballPos); scene.add(ballGroup);
-const ballTex = ballTextures();
 const ramp = new Uint8Array([195, 230, 255]);
 const grad = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
 grad.needsUpdate = true; grad.minFilter = grad.magFilter = THREE.NearestFilter;
-const ballMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(r, 48, 32),
-  new THREE.MeshToonMaterial({ map: ballTex, gradientMap: grad, emissive: 0xffffff, emissiveMap: ballTex, emissiveIntensity: 0.32 })
-);
-ballMesh.castShadow = true; ballMesh.receiveShadow = true;
-ballMesh.rotation.y = THREE.MathUtils.degToRad(30);
+const toToon = (m) => {
+  const col = (m && m.color) ? m.color.clone() : new THREE.Color(0xd4641d);
+  const body = (col.r * 0.299 + col.g * 0.587 + col.b * 0.114) > 0.05;
+  if (body) col.multiplyScalar(1.35);
+  return new THREE.MeshToonMaterial({ color: col, gradientMap: grad, emissive: body ? col.clone() : new THREE.Color(0), emissiveIntensity: body ? 0.3 : 0 });
+};
+const mtl = await new MTLLoader().loadAsync('../Basket Ball.mtl'); mtl.preload();
+const obj = await new OBJLoader().setMaterials(mtl).loadAsync('../buckets-ball.obj');
+obj.traverse((o) => { if (!o.isMesh) return; o.castShadow = true; o.receiveShadow = true; o.material = Array.isArray(o.material) ? o.material.map(toToon) : toToon(o.material); });
+const obox = new THREE.Box3().setFromObject(obj);
+const osize = new THREE.Vector3(); obox.getSize(osize);
+const ocenter = new THREE.Vector3(); obox.getCenter(ocenter); obj.position.sub(ocenter);
+const ballMesh = new THREE.Group(); ballMesh.add(obj);
+ballMesh.scale.setScalar((r * 2) / Math.max(osize.x, osize.y, osize.z));
+ballMesh.rotation.x = Math.PI / 2;
 ballGroup.add(ballMesh);
 
 // ---- hands gripping (mirror player._applyArmPose at pose ~0) ----
