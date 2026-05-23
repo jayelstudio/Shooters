@@ -136,6 +136,7 @@ export class Game {
   start() {
     this.audio.init();
     this.audio.resume();
+    this.audio.playRandomMusic();
     $('overlay-start').classList.add('hidden');
     this.state = 'ready';
     this.player.setPose(0);
@@ -155,6 +156,7 @@ export class Game {
     $('overlay-over').classList.add('hidden');
     this.ball.holdAtHands();
     this.state = 'ready';
+    this.audio.playRandomMusic();
     this._pickTarget(true);
     this._refreshHUD();
     this._banner(`Level ${this.level}`, 1.4);
@@ -169,11 +171,13 @@ export class Game {
     $('shoot-cue').classList.add('hidden');
     $('btn-shoot').classList.remove('pressed');
     $('overlay-pause').classList.remove('hidden');
+    this.audio.pauseMusic();
   }
 
   resumeGame() {
     if (this.state !== 'paused') return;
     $('overlay-pause').classList.add('hidden');
+    this.audio.resumeMusic();
     // a charge in progress is cancelled — return the ball to the hands
     if (this._prevState === 'charging') {
       this.ball.holdAtHands();
@@ -186,6 +190,7 @@ export class Game {
 
   endGame() {
     $('overlay-pause').classList.add('hidden');
+    this.audio.pauseMusic();
     this.state = 'idle';
     this.level = 1;
     this.score = 0;
@@ -286,12 +291,14 @@ export class Game {
       CONFIG.meter.basePerfectTol - (this.level - 1) * CONFIG.meter.tolPerLevel
     );
     this.audio.levelUp();
+    this.audio.playRandomMusic(); // switch to a new random track each level
     this._banner(`Level ${this.level}!`, 1.6);
     this._pickTarget(true);
   }
 
   _gameOver() {
     this.state = 'over';
+    this.audio.pauseMusic();
     this.audio.buzzer();
     let best = this.score;
     try {

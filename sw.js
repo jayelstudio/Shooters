@@ -1,6 +1,6 @@
 // Buckets service worker — offline support.
 // Bump CACHE to force clients to fetch fresh copies on next load.
-const CACHE = 'buckets-v2';
+const CACHE = 'buckets-v3';
 
 // App shell (same-origin). Paths are relative to the SW location (repo root).
 const LOCAL = [
@@ -24,11 +24,16 @@ const CDN = [
   'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/loaders/OBJLoader.js',
 ];
 
+// Best-effort (may not exist yet): background music tracks.
+const OPTIONAL = [
+  './background-1.mp3', './background-2.mp3', './background-3.mp3',
+];
+
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
     await cache.addAll(LOCAL);                 // must all succeed
-    await Promise.allSettled(CDN.map((u) => cache.add(u))); // best-effort
+    await Promise.allSettled([...CDN, ...OPTIONAL].map((u) => cache.add(u))); // best-effort
     self.skipWaiting();
   })());
 });
@@ -42,7 +47,7 @@ self.addEventListener('activate', (e) => {
 });
 
 const isStatic = (url) =>
-  /\.(png|jpe?g|svg|obj|glb|gltf|woff2?|css)(\?|$)/i.test(url) ||
+  /\.(png|jpe?g|svg|obj|glb|gltf|woff2?|css|mp3|m4a|ogg|wav)(\?|$)/i.test(url) ||
   url.includes('cdn.jsdelivr.net') ||
   url.includes('fonts.googleapis.com') ||
   url.includes('fonts.gstatic.com');

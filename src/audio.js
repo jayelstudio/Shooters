@@ -24,6 +24,13 @@ export class AudioEngine {
     this.enabled = true;
     this._silentEl = null;
     this.samples = { grunts: [] }; // decoded mp3 buffers (filled in init)
+    // background music (streamed via <audio>; switched on level-up)
+    this._music = null;
+    this._musicIndex = -1;
+    this._musicVol = 0.4;
+    this._musicShouldPlay = false;
+    this._fadeTimer = null;
+    this._musicTracks = ['./background-1.mp3', './background-2.mp3', './background-3.mp3'];
   }
 
   // Must be called from a user gesture (tap) to satisfy autoplay policies.
@@ -94,6 +101,61 @@ export class AudioEngine {
       const p = this._silentEl.play();
       if (p && p.catch) p.catch(() => {});
     }
+    this.resumeMusic();
+  }
+
+  // ----- Background music (random track, switches on level-up) -----
+  _ensureMusicEl() {
+    if (this._music) return this._music;
+    const el = new Audio();
+    el.loop = true; el.preload = 'auto'; el.volume = 0;
+    el.setAttribute('playsinline', ''); el.setAttribute('webkit-playsinline', '');
+    this._music = el;
+    return el;
+  }
+
+  playRandomMusic() {
+    if (!this.enabled) return;
+    const el = this._ensureMusicEl();
+    this._musicShouldPlay = true;
+    let n;
+    do { n = (Math.random() * this._musicTracks.length) | 0; }
+    while (this._musicTracks.length > 1 && n === this._musicIndex);
+    this._musicIndex = n;
+    const startTrack = () => {
+      el.src = this._musicTracks[n];
+      const p = el.play(); if (p && p.catch) p.catch(() => {});
+      this._fadeMusic(this._musicVol);
+    };
+    if (el.src && !el.paused) this._fadeMusic(0, startTrack); // fade out then switch
+    else startTrack();
+  }
+
+  pauseMusic() {
+    this._musicShouldPlay = false;
+    const el = this._music; if (!el) return;
+    this._fadeMusic(0, () => { try { el.pause(); } catch (_) {} });
+  }
+
+  resumeMusic() {
+    const el = this._music;
+    if (!el || !this._musicShouldPlay) return;
+    const p = el.play(); if (p && p.catch) p.catch(() => {});
+    this._fadeMusic(this._musicVol);
+  }
+
+  _fadeMusic(target, done) {
+    const el = this._music; if (!el) { done && done(); return; }
+    if (this._fadeTimer) { clearInterval(this._fadeTimer); this._fadeTimer = null; }
+    const dir = Math.sign(target - el.volume);
+    if (dir === 0) { done && done(); return; }
+    this._fadeTimer = setInterval(() => {
+      let v = el.volume + dir * 0.05;
+      const reached = (dir > 0 && v >= target) || (dir < 0 && v <= target);
+      v = Math.max(0, Math.min(1, reached ? target : v));
+      el.volume = v;
+      if (reached) { clearInterval(this._fadeTimer); this._fadeTimer = null; done && done(); }
+    }, 25);
   }
 
   _now() { return this.ctx.currentTime; }
