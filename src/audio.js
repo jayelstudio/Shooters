@@ -32,8 +32,13 @@ export class AudioEngine {
     this._musicShouldPlay = false;
     this._fadeTimer = null;
     this._musicTracks = ['./background-1.mp3', './background-2.mp3', './background-3.mp3'];
-    this.muted = false;
-    try { this.muted = localStorage.getItem('buckets.muted') === '1'; } catch (_) { /* ignore */ }
+    // persisted volumes (0..1): SFX drives the master gain, music the <audio> element
+    const num = (k, d) => {
+      try { const v = parseFloat(localStorage.getItem(k)); return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : d; }
+      catch (_) { return d; }
+    };
+    this._sfxVol = num('buckets.sfxVol', 0.9);
+    this._musicVol = num('buckets.musicVol', 0.2);
   }
 
   // Must be called from a user gesture (tap) to satisfy autoplay policies.
@@ -43,7 +48,7 @@ export class AudioEngine {
     if (!AC) { this.enabled = false; return; }
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.9;
+    this.master.gain.value = this._sfxVol;
     this.master.connect(this.ctx.destination);
     this._unlockSpeaker();
     this._startCrowd();
@@ -131,20 +136,28 @@ export class AudioEngine {
   _ensureMusicEl() {
     if (this._music) return this._music;
     const el = new Audio();
-    el.loop = true; el.preload = 'auto'; el.volume = 0; el.muted = this.muted;
+    el.loop = true; el.preload = 'auto'; el.volume = 0;
     el.setAttribute('playsinline', ''); el.setAttribute('webkit-playsinline', '');
     this._music = el;
     return el;
   }
 
-  // Mute/unmute only the background music (sound effects keep playing).
-  setMuted(m) {
-    this.muted = !!m;
-    try { localStorage.setItem('buckets.muted', this.muted ? '1' : '0'); } catch (_) { /* ignore */ }
-    if (this._music) this._music.muted = this.muted;
+  // ----- Volume controls (persisted) -----
+  getSfxVolume() { return this._sfxVol; }
+  getMusicVolume() { return this._musicVol; }
+
+  setSfxVolume(v) {
+    this._sfxVol = Math.min(1, Math.max(0, v));
+    if (this.master) this.master.gain.value = this._sfxVol;
+    try { localStorage.setItem('buckets.sfxVol', String(this._sfxVol)); } catch (_) { /* ignore */ }
   }
 
-  toggleMute() { this.setMuted(!this.muted); return this.muted; }
+  setMusicVolume(v) {
+    this._musicVol = Math.min(1, Math.max(0, v));
+    if (this._fadeTimer) { clearInterval(this._fadeTimer); this._fadeTimer = null; }
+    if (this._music && this._musicShouldPlay) this._music.volume = this._musicVol;
+    try { localStorage.setItem('buckets.musicVol', String(this._musicVol)); } catch (_) { /* ignore */ }
+  }
 
   playRandomMusic() {
     if (!this.enabled) return;

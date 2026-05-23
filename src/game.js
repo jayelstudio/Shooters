@@ -133,14 +133,32 @@ export class Game {
     });
     $('btn-restart').addEventListener('click', () => this.restart());
 
-    const muteEl = $('btn-mute');
-    const renderMute = () => {
-      muteEl.textContent = this.audio.muted ? '🔇' : '🔊';
-      muteEl.setAttribute('aria-label', this.audio.muted ? 'Unmute audio' : 'Mute audio');
-    };
-    muteEl.addEventListener('click', () => { this.audio.toggleMute(); renderMute(); });
-    renderMute();
+    // Top-left icon opens the audio settings overlay (SFX + music sliders).
+    $('btn-mute').addEventListener('click', () => this.openAudio());
+    $('btn-audio-close').addEventListener('click', () => this.closeAudio());
+    const sfxEl = $('vol-sfx'), musicEl = $('vol-music');
+    sfxEl.addEventListener('input', () => this.audio.setSfxVolume(parseFloat(sfxEl.value)));
+    musicEl.addEventListener('input', () => {
+      this.audio.setMusicVolume(parseFloat(musicEl.value));
+      this._renderMuteIcon();
+    });
+    this._renderMuteIcon();
   }
+
+  _renderMuteIcon() {
+    const el = $('btn-mute');
+    el.textContent = this.audio.getMusicVolume() <= 0 ? '🔇' : '🔊';
+  }
+
+  openAudio() {
+    this.audio.init();
+    this.audio.resume();
+    $('vol-sfx').value = this.audio.getSfxVolume();
+    $('vol-music').value = this.audio.getMusicVolume();
+    $('overlay-audio').classList.remove('hidden');
+  }
+
+  closeAudio() { $('overlay-audio').classList.add('hidden'); }
 
   start() {
     this._firstMake = true;
