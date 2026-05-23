@@ -58,6 +58,7 @@ const osize = new THREE.Vector3(); obox.getSize(osize);
 const ocenter = new THREE.Vector3(); obox.getCenter(ocenter); model.position.sub(ocenter);
 const ballMesh = new THREE.Group(); ballMesh.add(model);
 ballMesh.scale.setScalar((r * 2) / Math.max(osize.x, osize.y, osize.z));
+ballMesh.rotation.y = Math.PI / 4;
 ballGroup.add(ballMesh);
 
 // ---- hands gripping (mirror player._applyArmPose at pose ~0) ----

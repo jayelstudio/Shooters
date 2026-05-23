@@ -27,7 +27,7 @@ export class Ball {
     ball.castShadow = true;
     ball.receiveShadow = true;
     ball.layers.enable(HAND_LAYER);           // lit by the dedicated glove-shadow light
-    ball.rotation.y = THREE.MathUtils.degToRad(30); // seams read horizontal, vertical seam to the side
+    ball.rotation.y = Math.PI / 4; // turned 45deg (matches the loaded model)
     this._tempBall = ball;                    // fallback until the model loads
     this.mesh.add(ball);
     scene.add(this.mesh);
@@ -94,6 +94,7 @@ export class Ball {
       const wrap = new THREE.Group();
       wrap.add(model);
       wrap.scale.setScalar((this.r * 2) / Math.max(size.x, size.y, size.z));
+      wrap.rotation.y = Math.PI / 4; // turned 45deg (equator stays horizontal)
 
       this.mesh.remove(this._tempBall);
       this.mesh.add(wrap);
