@@ -31,6 +31,12 @@ export class Player {
     this.targetPose = 0;
     this.ft = 0;
 
+    // shot zoom: brief camera dolly toward the rim on release
+    this.shotZoom = 0;
+    this._zoomT = 0;
+    this._zooming = false;
+    this._fwd = new THREE.Vector3();
+
     const s = this.spots[this.index];
     camera.position.set(s.x, s.y, s.z);
     camera.lookAt(this.lookTarget);
@@ -71,7 +77,7 @@ export class Player {
   // The right (shooting) hand snaps up/forward on release; the left peels off.
   _applyArmPose(p) {
     const ft = this.ft;
-    const by = THREE.MathUtils.lerp(-0.38, -0.12, p);
+    const by = THREE.MathUtils.lerp(-0.342, -0.108, p); // raised 10%
     const bz = THREE.MathUtils.lerp(-0.71, -0.66, p);
     const tiltOver = -0.35 - p * 0.1; // fingers tip back over the top of the ball
 
@@ -93,10 +99,13 @@ export class Player {
   // Kick off the release follow-through (decays back to 0 in update()).
   startFollowThrough() { this.ft = 1; }
 
+  // Kick off a subtle dolly toward the rim (eases in then back out).
+  startShotZoom() { this._zoomT = 0; this._zooming = true; }
+
   // World-space point where the ball sits in the hands, given pose p.
   handBallPosition(p, out = new THREE.Vector3()) {
-    const low = new THREE.Vector3(0, -0.38, -0.71);
-    const high = new THREE.Vector3(0, -0.12, -0.66);
+    const low = new THREE.Vector3(0, -0.342, -0.71);
+    const high = new THREE.Vector3(0, -0.108, -0.66);
     out.lerpVectors(low, high, p);
     this.camera.localToWorld(out);
     return out;
@@ -121,6 +130,18 @@ export class Player {
     this.target.set(s.x, s.y, s.z);
     // smooth glide to the active spot
     this.camera.position.lerp(this.target, 1 - Math.pow(0.0008, dt));
+
+    // shot zoom: ease a dolly in toward the rim (~20% of the way) then back out
+    if (this._zooming) {
+      this._zoomT += dt / 1.3;
+      if (this._zoomT >= 1) { this._zooming = false; this.shotZoom = 0; }
+      else this.shotZoom = Math.sin(this._zoomT * Math.PI);
+    }
+    if (this.shotZoom > 0) {
+      this._fwd.set(this.lookTarget.x - this.camera.position.x, 0, this.lookTarget.z - this.camera.position.z);
+      const distH = this._fwd.length();
+      if (distH > 0.001) this.camera.position.addScaledVector(this._fwd.multiplyScalar(1 / distH), this.shotZoom * 0.2 * distH);
+    }
     this.camera.lookAt(this.lookTarget);
 
     // smooth arm pose + decaying follow-through snap

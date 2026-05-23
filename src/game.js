@@ -42,7 +42,7 @@ export class Game {
   // LIVES/MAKES stacked on the right.
   _buildHUD3D() {
     const group = new THREE.Group();
-    group.position.set(0, 8.0, -2);
+    group.position.set(0, 7.2, -2); // lowered 10% from 8.0
     this.scene.add(group);
     const W = 1.9, H = 1.12, vGap = 0.16, colX = 1.05;
     const columns = [
@@ -241,6 +241,7 @@ export class Game {
     this.lastFromTarget = this.player.index === this.targetIndex;
     this.ball.shoot(factor, lateral);
     this.player.startFollowThrough();
+    this.player.startShotZoom(); // subtle dolly toward the rim on release
   }
 
   _onMake() {
@@ -291,7 +292,12 @@ export class Game {
   _gameOver() {
     this.state = 'over';
     this.audio.buzzer();
-    $('final-score').textContent = `Score ${this.score} · Level ${this.level}`;
+    let best = this.score;
+    try {
+      best = Math.max(this.score, parseInt(localStorage.getItem('buckets.best') || '0', 10) || 0);
+      localStorage.setItem('buckets.best', String(best));
+    } catch (_) { /* storage unavailable */ }
+    $('final-score').textContent = `Score ${this.score} · Best ${best} · Level ${this.level}`;
     $('overlay-over').classList.remove('hidden');
   }
 

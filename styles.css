@@ -297,6 +297,27 @@ html, body {
   filter: blur(28px) brightness(0.7);
   transform: scale(1.15);
 }
+/* Reset cache / data button on the splash (top-right, above the safe area) */
+.clear-btn {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--safe-t) + 12px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+.clear-btn:active { transform: scale(0.95); }
+
 .splash-img { /* the full splash, never cropped */
   position: relative;
   z-index: 1;

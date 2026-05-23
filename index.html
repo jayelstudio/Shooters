@@ -5,7 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Buckets" />
   <meta name="theme-color" content="#05060a" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
   <title>Buckets — 3PT</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -60,6 +64,7 @@
   <!-- Overlays -->
   <div id="overlay-start" class="overlay splash" role="button" tabindex="0" aria-label="Tap to play">
     <img class="splash-img" src="./buckets-splash.png" alt="Buckets — Tap to play" />
+    <button id="btn-clear" class="clear-btn" aria-label="Clear cache and saved data">⟲ Reset</button>
   </div>
 
   <div id="overlay-pause" class="overlay hidden">
@@ -103,6 +108,38 @@
         document.getElementById('loaderr').classList.remove('hidden');
       }
     });
+
+    // Register the service worker so the game works offline after one load.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+
+    // Reset button on the splash: wipe caches + saved data for a hard refresh.
+    (function () {
+      const btn = document.getElementById('btn-clear');
+      if (!btn) return;
+      const stop = (e) => { e.stopPropagation(); e.preventDefault(); };
+      btn.addEventListener('pointerdown', stop);
+      btn.addEventListener('click', async (e) => {
+        stop(e);
+        btn.textContent = 'Clearing…';
+        try { localStorage.clear(); } catch (_) {}
+        try { sessionStorage.clear(); } catch (_) {}
+        try {
+          if (window.caches) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((k) => caches.delete(k)));
+          }
+          if (navigator.serviceWorker) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map((r) => r.unregister()));
+          }
+        } catch (_) {}
+        location.reload();
+      });
+    })();
   </script>
   <script type="module" src="./src/main.js"></script>
 </body>
