@@ -140,7 +140,7 @@ export class Player {
     if (this.shotZoom > 0) {
       this._fwd.set(this.lookTarget.x - this.camera.position.x, 0, this.lookTarget.z - this.camera.position.z);
       const distH = this._fwd.length();
-      if (distH > 0.001) this.camera.position.addScaledVector(this._fwd.multiplyScalar(1 / distH), this.shotZoom * 0.2 * distH);
+      if (distH > 0.001) this.camera.position.addScaledVector(this._fwd.multiplyScalar(1 / distH), this.shotZoom * 0.07 * distH);
     }
     this.camera.lookAt(this.lookTarget);
 
