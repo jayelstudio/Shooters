@@ -13,11 +13,14 @@ export class Ball {
 
     // Visual root: a group so the glTF ball can be swapped in. Physics moves this.
     this.mesh = new THREE.Group();
+    const ballTex = ballTextures();
     const mat = new THREE.MeshStandardMaterial({
-      map: ballTextures(), roughness: 0.55, metalness: 0.0,
+      map: ballTex, roughness: 0.5, metalness: 0.0,
+      emissive: 0xffffff, emissiveMap: ballTex, emissiveIntensity: 0.22, // brighter
     });
     this._fallbackBall = new THREE.Mesh(new THREE.SphereGeometry(this.r, 32, 24), mat);
     this._fallbackBall.castShadow = true;
+    this._fallbackBall.rotation.y = -Math.PI / 4; // turned 45deg to the right
     this.mesh.add(this._fallbackBall);
     scene.add(this.mesh);
     this._loadBallModel();
@@ -46,6 +49,7 @@ export class Ball {
     this.state = STATE.HELD;
     this.vel.set(0, 0, 0);
     this.scored = false;
+    this.mesh.rotation.set(0, 0, 0); // clear accumulated spin (45deg lives on the visual child)
   }
 
   // Load the glTF basketball, toon-shade it, and swap it for the default ball.
@@ -67,8 +71,8 @@ export class Ball {
       const center = new THREE.Vector3(); box.getCenter(center);
       model.position.sub(center);
 
-      // toon-shade every part, preserving its base colour
-      const ramp = new Uint8Array([90, 170, 255]);
+      // toon-shade every part, preserving its base colour (brighter ramp + lift)
+      const ramp = new Uint8Array([195, 230, 255]);
       const grad = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
       grad.needsUpdate = true;
       grad.minFilter = grad.magFilter = THREE.NearestFilter;
@@ -76,16 +80,23 @@ export class Ball {
         if (!o.isMesh) return;
         o.castShadow = true;
         const prev = o.material;
+        const map = prev && prev.map ? prev.map : null;
+        const color = (prev && prev.color ? prev.color.clone() : new THREE.Color(0xffffff)).multiplyScalar(1.22);
         o.material = new THREE.MeshToonMaterial({
-          color: prev && prev.color ? prev.color.clone() : new THREE.Color(0xffffff),
-          map: prev && prev.map ? prev.map : null,
+          color,
+          map,
           gradientMap: grad,
+          // self-lit lift so the ball reads brighter (use its own texture if present)
+          emissive: map ? new THREE.Color(0xffffff) : color.clone().multiplyScalar(0.18),
+          emissiveMap: map,
+          emissiveIntensity: map ? 0.38 : 1,
         });
       });
 
       const wrap = new THREE.Group();
       wrap.add(model);
       wrap.scale.setScalar((this.r * 2) / Math.max(size.x, size.y, size.z));
+      wrap.rotation.y = -Math.PI / 4; // turned 45deg to the right
 
       this.mesh.remove(this._fallbackBall);
       this.mesh.add(wrap);
@@ -134,7 +145,8 @@ export class Ball {
     this.scored = false;
     this.flightTime = 0;
     this.floorBounces = 0;
-    this.spin.set(-2, (Math.random() - 0.5) * 0.5, 0);
+    // backspin scaled by shot force (+x = top rotates back toward shooter, ball travels -z)
+    this.spin.set(speed * 1.5, (Math.random() - 0.5) * 0.4, 0);
     this.audio.shoot();
   }
 

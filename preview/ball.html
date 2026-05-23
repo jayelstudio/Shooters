@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>html,body{margin:0;background:#9aa0a8;overflow:hidden}#c{display:block;margin:0 auto}</style>
+<script type="importmap">
+{ "imports": {
+  "three": "/node_modules/three/build/three.module.js",
+  "three/addons/": "/node_modules/three/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { environment } from '../src/materials.js';
+
+const params = new URLSearchParams(location.search);
+const ramp = (params.get('ramp') || 'new'); // 'new' | 'old'
+const spin = parseFloat(params.get('spin') ?? '0'); // radians of backspin applied (x)
+const W = 600, H = 600;
+const canvas = document.getElementById('c'); canvas.width = W; canvas.height = H;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(W, H, false); renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x9aa0a8);
+scene.environment = environment(renderer);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(0.4, 0.9, 0.8); scene.add(key);
+const fill = new THREE.DirectionalLight(0xbcd0ff, 0.45); fill.position.set(-0.7, 0.1, 0.5); scene.add(fill);
+
+const cam = new THREE.PerspectiveCamera(40, 1, 0.01, 100);
+cam.position.set(0, 0.0, 0.55); cam.lookAt(0, 0, 0);
+
+const r = 0.12;
+const meshGroup = new THREE.Group(); scene.add(meshGroup);
+
+const loader = new GLTFLoader();
+const gltf = await loader.loadAsync('../basketball.glb');
+const model = gltf.scene;
+const box = new THREE.Box3().setFromObject(model);
+const size = new THREE.Vector3(); box.getSize(size);
+const center = new THREE.Vector3(); box.getCenter(center);
+model.position.sub(center);
+
+const rampArr = ramp === 'old' ? new Uint8Array([90, 170, 255])
+  : ramp === 'bright' ? new Uint8Array([195, 230, 255])
+  : new Uint8Array([170, 220, 255]);
+const grad = new THREE.DataTexture(rampArr, rampArr.length, 1, THREE.RedFormat);
+grad.needsUpdate = true; grad.minFilter = grad.magFilter = THREE.NearestFilter;
+const eInt = ramp === 'old' ? 0 : ramp === 'bright' ? 0.38 : 0.2;
+const cMul = ramp === 'bright' ? 1.22 : 1.0;
+model.traverse((o) => {
+  if (!o.isMesh) return;
+  const prev = o.material;
+  const map = prev && prev.map ? prev.map : null;
+  const color = (prev && prev.color ? prev.color.clone() : new THREE.Color(0xffffff)).multiplyScalar(cMul);
+  o.material = new THREE.MeshToonMaterial({
+    color, map, gradientMap: grad,
+    emissive: ramp === 'old' ? new THREE.Color(0x000000) : (map ? new THREE.Color(0xffffff) : color.clone().multiplyScalar(0.18)),
+    emissiveMap: ramp === 'old' ? null : map,
+    emissiveIntensity: map ? eInt : (ramp === 'old' ? 0 : 1),
+  });
+});
+const wrap = new THREE.Group(); wrap.add(model);
+wrap.scale.setScalar((r * 2) / Math.max(size.x, size.y, size.z));
+wrap.rotation.y = -Math.PI / 4;
+meshGroup.add(wrap);
+meshGroup.rotation.x = spin;
+
+renderer.render(scene, cam);
+requestAnimationFrame(() => { renderer.render(scene, cam); window.__ready = true; });
+</script>
+</body>
+</html>
