@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>html,body{margin:0;background:#9aa0a8;overflow:hidden}#c{display:block;margin:0 auto}</style>
+<script type="importmap">
+{ "imports": {
+  "three": "/node_modules/three/build/three.module.js",
+  "three/addons/": "/node_modules/three/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { environment } from '../src/materials.js';
+
+const params = new URLSearchParams(location.search);
+const file = params.get('file') || 'generic_basketball_ball.glb';
+const mode = params.get('mode') || 'toon'; // 'raw' | 'toon'
+const rx = parseFloat(params.get('rx') ?? '0');
+const ry = parseFloat(params.get('ry') ?? '0');
+const rz = parseFloat(params.get('rz') ?? '0');
+const W = 600, H = 600;
+const canvas = document.getElementById('c'); canvas.width = W; canvas.height = H;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(W, H, false); renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x9aa0a8);
+scene.environment = environment(renderer);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(0.4, 0.9, 0.8); scene.add(key);
+const fill = new THREE.DirectionalLight(0xbcd0ff, 0.45); fill.position.set(-0.7, 0.1, 0.5); scene.add(fill);
+const cam = new THREE.PerspectiveCamera(40, 1, 0.01, 100); cam.position.set(0, 0, 0.6); cam.lookAt(0, 0, 0);
+
+const ramp = new Uint8Array([195, 230, 255]);
+const grad = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
+grad.needsUpdate = true; grad.minFilter = grad.magFilter = THREE.NearestFilter;
+
+const gltf = await new GLTFLoader().loadAsync('../' + file);
+const model = gltf.scene;
+const info = [];
+model.traverse((o) => {
+  if (!o.isMesh) return;
+  const m = o.material;
+  info.push({
+    name: o.name, mat: m && m.name, type: m && m.type,
+    verts: o.geometry.attributes.position ? o.geometry.attributes.position.count : 0,
+    hasUV: !!o.geometry.attributes.uv,
+    map: m && m.map && m.map.image ? `${m.map.image.width}x${m.map.image.height}` : 'none',
+    color: m && m.color ? '#' + m.color.getHexString() : 'none',
+  });
+  if (mode === 'toon') {
+    const map = m && m.map ? m.map : null;
+    const col = m && m.color ? m.color.clone() : new THREE.Color(0xffffff);
+    o.material = new THREE.MeshToonMaterial({
+      color: col, map, gradientMap: grad,
+      emissive: map ? new THREE.Color(0xffffff) : col.clone().multiplyScalar(0.18),
+      emissiveMap: map, emissiveIntensity: map ? 0.32 : 1,
+    });
+  }
+});
+window.__info = info;
+
+const box = new THREE.Box3().setFromObject(model);
+const size = new THREE.Vector3(); box.getSize(size);
+const center = new THREE.Vector3(); box.getCenter(center); model.position.sub(center);
+const wrap = new THREE.Group(); wrap.add(model);
+wrap.scale.setScalar(0.24 / Math.max(size.x, size.y, size.z));
+wrap.rotation.set(rx * Math.PI / 180, ry * Math.PI / 180, rz * Math.PI / 180);
+scene.add(wrap);
+
+renderer.render(scene, cam);
+requestAnimationFrame(() => { renderer.render(scene, cam); window.__ready = true; });
+</script>
+</body>
+</html>
