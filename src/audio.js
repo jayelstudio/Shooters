@@ -24,7 +24,7 @@ export class AudioEngine {
     this.enabled = true;
     this._silentEl = null;
     this.samples = { grunts: [] }; // decoded mp3 buffers (filled in init)
-    this.sfx = { cheers: [], misses: [], level: null, extra: null };
+    this.sfx = { cheers: [], missShort: [], missAny: [], level: null, extra: null };
     // background music (streamed via <audio>; switched on level-up)
     this._music = null;
     this._musicIndex = -1;
@@ -68,16 +68,22 @@ export class AudioEngine {
     this.samples = { grunts: [g1, g2, g3].filter(Boolean), bounce, rim, board, net };
 
     // sfx/ folder: cheers, misses, level, extra
-    const [c1, c2, c3, c4, c5, c6, c7, m1, m2, m3, level, extra] = await Promise.all([
+    const [c1, c2, c3, c4, c5, c6, c7, m1, m2, m3, level, extra,
+      joaquin1, mateo1, mateo3, sole1, sole2] = await Promise.all([
       decode('./sfx/cheer-1.mp3'), decode('./sfx/cheer-2.mp3'), decode('./sfx/cheer-3.mp3'),
       decode('./sfx/cheer-4.mp3'), decode('./sfx/cheer-5.mp3'), decode('./sfx/cheer-6.mp3'),
       decode('./sfx/cheer-7.mp3'),
       decode('./sfx/miss-1.mp3'), decode('./sfx/miss-2.mp3'), decode('./sfx/miss-3.mp3'),
       decode('./sfx/level-1.mp3'), decode('./sfx/extra-1.mp3'),
+      decode('./sfx/joaquin-miss-1.mp3'), decode('./sfx/mateo-miss-1.mp3'),
+      decode('./sfx/mateo-miss-3.mp3'), decode('./sfx/sole-miss-1.mp3'), decode('./sfx/sole-miss-2.mp3'),
     ]);
     this.sfx = {
       cheers: [c1, c2, c3, c4, c5, c6, c7], // index 0 = cheer-1 (first basket)
-      misses: [m1, m2, m3],                 // 0 = short, 2 = past backboard
+      // too-short shots pick from these:
+      missShort: [m1, mateo3],
+      // any other miss picks from the full pool:
+      missAny: [m1, m2, m3, joaquin1, mateo1, mateo3, sole1, sole2],
       level, extra,
     };
   }
@@ -339,15 +345,12 @@ export class AudioEngine {
     this._playBuffer(buf, 0.9);
   }
 
-  // reason: 'short' -> miss-1, 'long'/'past' -> miss-3, else miss-2
+  // short -> random{miss-1, mateo-miss-3}; any other miss -> random from the full pool
   playMiss(reason) {
-    const m = this.sfx && this.sfx.misses ? this.sfx.misses : [];
-    let buf;
-    if (reason === 'short') buf = m[0];
-    else if (reason === 'long' || reason === 'past') buf = m[2];
-    else buf = m[1];
-    if (!buf) { const avail = m.filter(Boolean); buf = avail[(Math.random() * avail.length) | 0]; }
-    this._playBuffer(buf, 0.9);
+    const pool = reason === 'short' ? this.sfx.missShort : this.sfx.missAny;
+    const avail = (pool || []).filter(Boolean);
+    if (!avail.length) return;
+    this._playBuffer(avail[(Math.random() * avail.length) | 0], 0.9);
   }
 
   playLevel() { if (this.sfx && this.sfx.level) this._playBuffer(this.sfx.level, 0.9); }
