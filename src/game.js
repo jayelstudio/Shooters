@@ -131,6 +131,14 @@ export class Game {
       if (e.key === 'Enter' || e.key === ' ') this.start();
     });
     $('btn-restart').addEventListener('click', () => this.restart());
+
+    const muteEl = $('btn-mute');
+    const renderMute = () => {
+      muteEl.textContent = this.audio.muted ? '🔇' : '🔊';
+      muteEl.setAttribute('aria-label', this.audio.muted ? 'Unmute audio' : 'Mute audio');
+    };
+    muteEl.addEventListener('click', () => { this.audio.toggleMute(); renderMute(); });
+    renderMute();
   }
 
   start() {

@@ -27,10 +27,12 @@ export class AudioEngine {
     // background music (streamed via <audio>; switched on level-up)
     this._music = null;
     this._musicIndex = -1;
-    this._musicVol = 0.4;
+    this._musicVol = 0.2;
     this._musicShouldPlay = false;
     this._fadeTimer = null;
     this._musicTracks = ['./background-1.mp3', './background-2.mp3', './background-3.mp3'];
+    this.muted = false;
+    try { this.muted = localStorage.getItem('buckets.muted') === '1'; } catch (_) { /* ignore */ }
   }
 
   // Must be called from a user gesture (tap) to satisfy autoplay policies.
@@ -40,7 +42,7 @@ export class AudioEngine {
     if (!AC) { this.enabled = false; return; }
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.9;
+    this.master.gain.value = this.muted ? 0 : 0.9;
     this.master.connect(this.ctx.destination);
     this._unlockSpeaker();
     this._startCrowd();
@@ -108,11 +110,21 @@ export class AudioEngine {
   _ensureMusicEl() {
     if (this._music) return this._music;
     const el = new Audio();
-    el.loop = true; el.preload = 'auto'; el.volume = 0;
+    el.loop = true; el.preload = 'auto'; el.volume = 0; el.muted = this.muted;
     el.setAttribute('playsinline', ''); el.setAttribute('webkit-playsinline', '');
     this._music = el;
     return el;
   }
+
+  // Mute/unmute all game audio (SFX via master gain, music via the element).
+  setMuted(m) {
+    this.muted = !!m;
+    try { localStorage.setItem('buckets.muted', this.muted ? '1' : '0'); } catch (_) { /* ignore */ }
+    if (this.master) this.master.gain.value = this.muted ? 0 : 0.9;
+    if (this._music) this._music.muted = this.muted;
+  }
+
+  toggleMute() { this.setMuted(!this.muted); return this.muted; }
 
   playRandomMusic() {
     if (!this.enabled) return;

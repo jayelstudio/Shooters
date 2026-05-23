@@ -297,6 +297,29 @@ html, body {
   filter: blur(28px) brightness(0.7);
   transform: scale(1.15);
 }
+/* Persistent mute toggle (top-left), same pill style as the reset button */
+.mute-btn {
+  position: fixed;
+  z-index: 40;
+  top: calc(var(--safe-t) + 12px);
+  left: calc(env(safe-area-inset-left, 0px) + 12px);
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+.mute-btn:active { transform: scale(0.95); }
+
 /* Reset cache / data button on the splash (top-right, above the safe area) */
 .clear-btn {
   position: absolute;
