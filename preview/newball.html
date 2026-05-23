@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>html,body{margin:0;background:#9aa0a8;overflow:hidden}#c{display:block;margin:0 auto}</style>
+<script type="importmap">
+{ "imports": {
+  "three": "/node_modules/three/build/three.module.js",
+  "three/addons/": "/node_modules/three/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { environment } from '../src/materials.js';
+
+const params = new URLSearchParams(location.search);
+const rx = parseFloat(params.get('rx') ?? '0');
+const ry = parseFloat(params.get('ry') ?? '0');
+const mode = params.get('mode') || 'toon'; // 'toon' | 'std'
+const W = 600, H = 600;
+const canvas = document.getElementById('c'); canvas.width = W; canvas.height = H;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(W, H, false); renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x9aa0a8);
+scene.environment = environment(renderer);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(0.4, 0.9, 0.8); scene.add(key);
+const fill = new THREE.DirectionalLight(0xbcd0ff, 0.45); fill.position.set(-0.7, 0.1, 0.5); scene.add(fill);
+const cam = new THREE.PerspectiveCamera(40, 1, 0.01, 100); cam.position.set(0, 0, 0.6); cam.lookAt(0, 0, 0);
+
+const tl = new THREE.TextureLoader();
+const colorMap = await tl.loadAsync('../ball/basketball.jpg'); colorMap.colorSpace = THREE.SRGBColorSpace; colorMap.anisotropy = 8;
+const normMap = await tl.loadAsync('../ball/basketball_NORM.jpg'); normMap.anisotropy = 8;
+
+const ramp = new Uint8Array([195, 230, 255]);
+const grad = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
+grad.needsUpdate = true; grad.minFilter = grad.magFilter = THREE.NearestFilter;
+
+function matFor(name) {
+  const seam = /rubber/i.test(name || '');
+  if (mode === 'std') {
+    return seam
+      ? new THREE.MeshStandardMaterial({ color: 0x140f0b, roughness: 0.7 })
+      : new THREE.MeshStandardMaterial({ map: colorMap, normalMap: normMap, roughness: 0.55, color: 0xffd0a0 });
+  }
+  return seam
+    ? new THREE.MeshToonMaterial({ color: 0x140f0b, gradientMap: grad })
+    : new THREE.MeshToonMaterial({ map: colorMap, normalMap: normMap, gradientMap: grad, color: 0xffc89a, emissive: 0xffffff, emissiveMap: colorMap, emissiveIntensity: 0.25 });
+}
+
+const obj = await new OBJLoader().loadAsync('../ball/basketball.obj');
+const names = [];
+obj.traverse((o) => {
+  if (!o.isMesh) return;
+  o.geometry.computeVertexNormals();
+  if (Array.isArray(o.material)) { names.push(o.material.map((m) => m.name).join(',')); o.material = o.material.map((m) => matFor(m.name)); }
+  else { names.push(o.material && o.material.name); o.material = matFor(o.material && o.material.name); }
+});
+window.__names = names;
+
+const box = new THREE.Box3().setFromObject(obj);
+const size = new THREE.Vector3(); box.getSize(size);
+const center = new THREE.Vector3(); box.getCenter(center); obj.position.sub(center);
+const wrap = new THREE.Group(); wrap.add(obj);
+wrap.scale.setScalar(0.24 / Math.max(size.x, size.y, size.z));
+wrap.rotation.set(rx * Math.PI / 180, ry * Math.PI / 180, 0);
+scene.add(wrap);
+
+renderer.render(scene, cam);
+requestAnimationFrame(() => { renderer.render(scene, cam); window.__ready = true; });
+</script>
+</body>
+</html>

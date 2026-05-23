@@ -60,46 +60,49 @@ export class Ball {
     this.mesh.rotation.set(0, 0, 0); // clear accumulated spin (seam orientation lives on the child)
   }
 
-  // Load the uploaded basketball model (textured glb), toon-shade it to match
-  // the game, and swap it for the procedural ball.
+  // Load the uploaded basketball (OBJ + pebble color/normal maps; "rubber"
+  // material = seams), toon-shade it to match the game, and swap it in.
   async _loadBallModel() {
     try {
-      const { GLTFLoader } = await import(
-        'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/loaders/GLTFLoader.js'
+      const { OBJLoader } = await import(
+        'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/loaders/OBJLoader.js'
       );
-      const gltf = await new GLTFLoader().loadAsync('./generic_basketball_ball.glb');
-      const model = gltf.scene;
+      const tl = new THREE.TextureLoader();
+      const colorMap = await tl.loadAsync('./ball/basketball.jpg');
+      colorMap.colorSpace = THREE.SRGBColorSpace; colorMap.anisotropy = 8;
+      const normMap = await tl.loadAsync('./ball/basketball_NORM.jpg'); normMap.anisotropy = 8;
 
       const ramp = new Uint8Array([195, 230, 255]);
       const grad = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
       grad.needsUpdate = true; grad.minFilter = grad.magFilter = THREE.NearestFilter;
-      model.traverse((o) => {
+      const matFor = (name) => /rubber/i.test(name || '')
+        ? new THREE.MeshToonMaterial({ color: 0x140f0b, gradientMap: grad }) // seams
+        : new THREE.MeshToonMaterial({
+            map: colorMap, normalMap: normMap, gradientMap: grad, color: 0xffc89a,
+            emissive: 0xffffff, emissiveMap: colorMap, emissiveIntensity: 0.25, // brighter
+          });
+
+      const obj = await new OBJLoader().loadAsync('./ball/basketball.obj');
+      obj.traverse((o) => {
         if (!o.isMesh) return;
+        o.geometry.computeVertexNormals(); // OBJ has no normals
         o.castShadow = true; o.receiveShadow = true; o.layers.enable(HAND_LAYER);
-        const prev = o.material;
-        const map = prev && prev.map ? prev.map : null;
-        const col = prev && prev.color ? prev.color.clone() : new THREE.Color(0xffffff);
-        o.material = new THREE.MeshToonMaterial({
-          color: col, map, gradientMap: grad,
-          // self-lit lift from its own texture so the ball reads brighter
-          emissive: map ? new THREE.Color(0xffffff) : col.clone().multiplyScalar(0.18),
-          emissiveMap: map, emissiveIntensity: map ? 0.32 : 1,
-        });
+        o.material = Array.isArray(o.material) ? o.material.map((m) => matFor(m.name)) : matFor(o.material && o.material.name);
       });
 
-      const box = new THREE.Box3().setFromObject(model);
+      const box = new THREE.Box3().setFromObject(obj);
       const size = new THREE.Vector3(); box.getSize(size);
       const center = new THREE.Vector3(); box.getCenter(center);
-      model.position.sub(center);
+      obj.position.sub(center);
       const wrap = new THREE.Group();
-      wrap.add(model);
+      wrap.add(obj);
       wrap.scale.setScalar((this.r * 2) / Math.max(size.x, size.y, size.z));
-      wrap.rotation.y = Math.PI / 4; // turned 45deg (equator stays horizontal)
+      wrap.rotation.y = Math.PI / 4; // turned 45deg
 
       this.mesh.remove(this._tempBall);
       this.mesh.add(wrap);
     } catch (e) {
-      console.warn('basketball glb load failed; keeping procedural ball.', e);
+      console.warn('basketball OBJ load failed; keeping procedural ball.', e);
     }
   }
 

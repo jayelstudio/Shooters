@@ -14,7 +14,7 @@
 <canvas id="c"></canvas>
 <script type="module">
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { buildHand, DEFAULT_P, setHandCurl } from '../src/glovebuild.js';
 import { environment } from '../src/materials.js';
 
@@ -44,14 +44,18 @@ const ballGroup = new THREE.Group(); ballGroup.position.copy(ballPos); scene.add
 const ramp = new Uint8Array([195, 230, 255]);
 const grad = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
 grad.needsUpdate = true; grad.minFilter = grad.magFilter = THREE.NearestFilter;
-const gltf = await new GLTFLoader().loadAsync('../generic_basketball_ball.glb');
-const model = gltf.scene;
+const tl = new THREE.TextureLoader();
+const colorMap = await tl.loadAsync('../ball/basketball.jpg'); colorMap.colorSpace = THREE.SRGBColorSpace; colorMap.anisotropy = 8;
+const normMap = await tl.loadAsync('../ball/basketball_NORM.jpg'); normMap.anisotropy = 8;
+const matFor = (name) => /rubber/i.test(name || '')
+  ? new THREE.MeshToonMaterial({ color: 0x140f0b, gradientMap: grad })
+  : new THREE.MeshToonMaterial({ map: colorMap, normalMap: normMap, gradientMap: grad, color: 0xffc89a, emissive: 0xffffff, emissiveMap: colorMap, emissiveIntensity: 0.25 });
+const model = await new OBJLoader().loadAsync('../ball/basketball.obj');
 model.traverse((o) => {
   if (!o.isMesh) return;
+  o.geometry.computeVertexNormals();
   o.castShadow = true; o.receiveShadow = true;
-  const prev = o.material; const map = prev && prev.map ? prev.map : null;
-  const col = prev && prev.color ? prev.color.clone() : new THREE.Color(0xffffff);
-  o.material = new THREE.MeshToonMaterial({ color: col, map, gradientMap: grad, emissive: map ? new THREE.Color(0xffffff) : col, emissiveMap: map, emissiveIntensity: map ? 0.32 : 1 });
+  o.material = Array.isArray(o.material) ? o.material.map((m) => matFor(m.name)) : matFor(o.material && o.material.name);
 });
 const obox = new THREE.Box3().setFromObject(model);
 const osize = new THREE.Vector3(); obox.getSize(osize);
