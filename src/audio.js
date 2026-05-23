@@ -287,10 +287,6 @@ export class AudioEngine {
     this._noiseBurst({ dur: 0.22, gain: 0.16, type: 'highpass', freq: 5000 });
   }
 
-  shoot() {
-    this._noiseBurst({ dur: 0.12, gain: 0.08, type: 'highpass', freq: 3000 });
-  }
-
   // Crowd cheer: layered rising noise + chord.
   cheer(big = false) {
     if (!this.ctx || !this.enabled) return;

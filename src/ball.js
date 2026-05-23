@@ -149,7 +149,6 @@ export class Ball {
     // backspin scaled by shot force (+x = top rotates back toward shooter, ball travels -z)
     this.spin.set(speed * 1.5, (Math.random() - 0.5) * 0.4, 0);
     this.touchedRim = false;
-    this.audio.shoot();
   }
 
   update(dt, audio) {
