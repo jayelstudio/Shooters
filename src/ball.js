@@ -27,7 +27,7 @@ export class Ball {
     ball.castShadow = true;
     ball.receiveShadow = true;
     ball.layers.enable(HAND_LAYER);           // lit by the dedicated glove-shadow light
-    ball.rotation.y = Math.PI / 4; // turned 45deg (matches the loaded model)
+    ball.rotation.set(0, (3 * Math.PI) / 2, THREE.MathUtils.degToRad(35)); // matches loaded model
     this._tempBall = ball;                    // fallback until the model loads
     this.mesh.add(ball);
     scene.add(this.mesh);
@@ -97,7 +97,9 @@ export class Ball {
       const wrap = new THREE.Group();
       wrap.add(obj);
       wrap.scale.setScalar((this.r * 2) / Math.max(size.x, size.y, size.z));
-      wrap.rotation.y = Math.PI / 4; // turned 45deg
+      // Orient so the seams read horizontal and the texture's pole pinch is
+      // turned to the back / under the hands (out of view).
+      wrap.rotation.set(0, (3 * Math.PI) / 2, THREE.MathUtils.degToRad(35));
 
       this.mesh.remove(this._tempBall);
       this.mesh.add(wrap);

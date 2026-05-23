@@ -20,6 +20,7 @@ import { environment } from '../src/materials.js';
 const params = new URLSearchParams(location.search);
 const rx = parseFloat(params.get('rx') ?? '0');
 const ry = parseFloat(params.get('ry') ?? '0');
+const rz = parseFloat(params.get('rz') ?? '0');
 const mode = params.get('mode') || 'toon'; // 'toon' | 'std'
 const W = 600, H = 600;
 const canvas = document.getElementById('c'); canvas.width = W; canvas.height = H;
@@ -67,7 +68,7 @@ const size = new THREE.Vector3(); box.getSize(size);
 const center = new THREE.Vector3(); box.getCenter(center); obj.position.sub(center);
 const wrap = new THREE.Group(); wrap.add(obj);
 wrap.scale.setScalar(0.24 / Math.max(size.x, size.y, size.z));
-wrap.rotation.set(rx * Math.PI / 180, ry * Math.PI / 180, 0);
+wrap.rotation.set(rx * Math.PI / 180, ry * Math.PI / 180, rz * Math.PI / 180);
 scene.add(wrap);
 
 renderer.render(scene, cam);
