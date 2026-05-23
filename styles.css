@@ -322,6 +322,7 @@ html, body {
   height: 30px;
   accent-color: #39d0ff;
   cursor: pointer;
+  touch-action: auto; /* override body touch-action:none so the thumb can be dragged */
 }
 
 /* Persistent mute toggle (top-left), same pill style as the reset button */

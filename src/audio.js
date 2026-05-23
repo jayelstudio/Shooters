@@ -39,6 +39,9 @@ export class AudioEngine {
     };
     this._sfxVol = num('buckets.sfxVol', 0.9);
     this._musicVol = num('buckets.musicVol', 0.2);
+    this._musicLevel = 0;   // current (faded) music level
+    this._musicSrc = null;  // MediaElementSource (so volume works on iOS)
+    this.musicGain = null;
   }
 
   // Must be called from a user gesture (tap) to satisfy autoplay policies.
@@ -50,6 +53,11 @@ export class AudioEngine {
     this.master = this.ctx.createGain();
     this.master.gain.value = this._sfxVol;
     this.master.connect(this.ctx.destination);
+    // Music runs through its own gain node (separate from SFX) so its volume is
+    // controllable even on iOS, where HTMLAudioElement.volume is ignored.
+    this.musicGain = this.ctx.createGain();
+    this.musicGain.gain.value = this._musicLevel;
+    this.musicGain.connect(this.ctx.destination);
     this._unlockSpeaker();
     this._startCrowd();
     this._loadSamples();
@@ -136,10 +144,27 @@ export class AudioEngine {
   _ensureMusicEl() {
     if (this._music) return this._music;
     const el = new Audio();
-    el.loop = true; el.preload = 'auto'; el.volume = 0;
+    el.loop = true; el.preload = 'auto'; el.volume = 0; el.crossOrigin = 'anonymous';
     el.setAttribute('playsinline', ''); el.setAttribute('webkit-playsinline', '');
     this._music = el;
     return el;
+  }
+
+  // Route the music element through the WebAudio graph so its level is set via
+  // musicGain (works on iOS). Falls back to el.volume if routing isn't possible.
+  _ensureMusicSource() {
+    if (this._musicSrc || !this.ctx || !this.musicGain || !this._music) return;
+    try {
+      this._musicSrc = this.ctx.createMediaElementSource(this._music);
+      this._musicSrc.connect(this.musicGain);
+      this._music.volume = 1; // the gain node controls the level now
+    } catch (e) { this._musicSrc = null; }
+  }
+
+  _setMusicLevel(v) {
+    this._musicLevel = v;
+    if (this._musicSrc && this.musicGain) this.musicGain.gain.value = v;
+    else if (this._music) this._music.volume = v;
   }
 
   // ----- Volume controls (persisted) -----
@@ -155,7 +180,7 @@ export class AudioEngine {
   setMusicVolume(v) {
     this._musicVol = Math.min(1, Math.max(0, v));
     if (this._fadeTimer) { clearInterval(this._fadeTimer); this._fadeTimer = null; }
-    if (this._music && this._musicShouldPlay) this._music.volume = this._musicVol;
+    if (this._musicShouldPlay) this._setMusicLevel(this._musicVol);
     try { localStorage.setItem('buckets.musicVol', String(this._musicVol)); } catch (_) { /* ignore */ }
   }
 
@@ -170,6 +195,7 @@ export class AudioEngine {
     const startTrack = () => {
       el.src = this._musicTracks[n];
       const p = el.play(); if (p && p.catch) p.catch(() => {});
+      this._ensureMusicSource();
       this._fadeMusic(this._musicVol);
     };
     if (el.src && !el.paused) this._fadeMusic(0, startTrack); // fade out then switch
@@ -186,19 +212,21 @@ export class AudioEngine {
     const el = this._music;
     if (!el || !this._musicShouldPlay) return;
     const p = el.play(); if (p && p.catch) p.catch(() => {});
+    this._ensureMusicSource();
     this._fadeMusic(this._musicVol);
   }
 
   _fadeMusic(target, done) {
-    const el = this._music; if (!el) { done && done(); return; }
+    if (!this._music) { done && done(); return; }
     if (this._fadeTimer) { clearInterval(this._fadeTimer); this._fadeTimer = null; }
-    const dir = Math.sign(target - el.volume);
-    if (dir === 0) { done && done(); return; }
+    let cur = this._musicLevel;
+    const dir = Math.sign(target - cur);
+    if (dir === 0) { this._setMusicLevel(target); done && done(); return; }
     this._fadeTimer = setInterval(() => {
-      let v = el.volume + dir * 0.05;
-      const reached = (dir > 0 && v >= target) || (dir < 0 && v <= target);
-      v = Math.max(0, Math.min(1, reached ? target : v));
-      el.volume = v;
+      cur += dir * 0.05;
+      const reached = (dir > 0 && cur >= target) || (dir < 0 && cur <= target);
+      cur = Math.max(0, Math.min(1, reached ? target : cur));
+      this._setMusicLevel(cur);
       if (reached) { clearInterval(this._fadeTimer); this._fadeTimer = null; done && done(); }
     }, 25);
   }
