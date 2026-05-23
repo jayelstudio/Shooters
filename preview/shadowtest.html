@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>html,body{margin:0;background:#9aa0a8;overflow:hidden}#c{display:block;margin:0 auto}</style>
+<script type="importmap">
+{ "imports": {
+  "three": "/node_modules/three/build/three.module.js",
+  "three/addons/": "/node_modules/three/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { buildHand, DEFAULT_P, setHandCurl } from '../src/glovebuild.js';
+import { environment } from '../src/materials.js';
+
+const params = new URLSearchParams(location.search);
+const lightInt = parseFloat(params.get('int') ?? '0.6');
+const bias = parseFloat(params.get('bias') ?? '-0.0008');
+const soft = (params.get('soft') ?? '1') === '1';
+const W = 560, H = 720;
+const canvas = document.getElementById('c'); canvas.width = W; canvas.height = H;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(W, H, false); renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = soft ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x9aa0a8);
+scene.environment = environment(renderer);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const key = new THREE.DirectionalLight(0xffffff, 1.0); key.position.set(0.4, 0.9, 0.8); scene.add(key);
+const fill = new THREE.DirectionalLight(0xbcd0ff, 0.4); fill.position.set(-0.7, 0.1, 0.5); scene.add(fill);
+
+const cam = new THREE.PerspectiveCamera(74, W / H, 0.05, 100);
+cam.position.set(0, 0, 0); cam.lookAt(0, -0.34, -0.71);
+
+// ---- ball (POV position) ----
+const r = 0.12;
+const ballPos = new THREE.Vector3(0, -0.38, -0.71);
+const ballGroup = new THREE.Group(); ballGroup.position.copy(ballPos); scene.add(ballGroup);
+const loader = new GLTFLoader();
+const gltf = await loader.loadAsync('../basketball.glb');
+const model = gltf.scene;
+const box = new THREE.Box3().setFromObject(model);
+const size = new THREE.Vector3(); box.getSize(size);
+const center = new THREE.Vector3(); box.getCenter(center); model.position.sub(center);
+const ramp = new Uint8Array([195, 230, 255]);
+const grad = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
+grad.needsUpdate = true; grad.minFilter = grad.magFilter = THREE.NearestFilter;
+model.traverse((o) => {
+  if (!o.isMesh) return;
+  o.castShadow = true; o.receiveShadow = true;
+  const prev = o.material; const map = prev && prev.map ? prev.map : null;
+  const color = (prev && prev.color ? prev.color.clone() : new THREE.Color(0xffffff)).multiplyScalar(1.22);
+  o.material = new THREE.MeshToonMaterial({
+    color, map, gradientMap: grad,
+    emissive: map ? new THREE.Color(0xffffff) : color.clone().multiplyScalar(0.18),
+    emissiveMap: map, emissiveIntensity: map ? 0.38 : 1,
+  });
+});
+const wrap = new THREE.Group(); wrap.add(model);
+wrap.scale.setScalar((r * 2) / Math.max(size.x, size.y, size.z));
+wrap.rotation.z = Math.PI / 2;
+ballGroup.add(wrap);
+
+// ---- hands gripping (mirror player._applyArmPose at pose ~0) ----
+const tiltOver = -0.35;
+const L = buildHand(DEFAULT_P, -1); L.scale.setScalar(0.85);
+L.position.set(-0.12, -0.40, -0.66); L.rotation.set(tiltOver, -1.15, -0.08);
+const R = buildHand(DEFAULT_P, 1); R.scale.setScalar(0.85);
+R.position.set(0.045, -0.41, -0.555); R.rotation.set(tiltOver + 0.22, 0.4, 0.05);
+setHandCurl(L, DEFAULT_P, 1); setHandCurl(R, DEFAULT_P, 1);
+[L, R].forEach((h) => { h.traverse((o) => { if (o.isMesh) o.castShadow = true; }); });
+scene.add(L, R);
+
+// ---- dedicated shadow light over the hands/ball ----
+const lx = parseFloat(params.get('lx') ?? '0.15');
+const ly = parseFloat(params.get('ly') ?? '0.45');
+const lz = parseFloat(params.get('lz') ?? '0.6');
+const sl = new THREE.DirectionalLight(0xffffff, lightInt);
+sl.position.copy(ballPos).add(new THREE.Vector3(lx, ly, lz));
+sl.target.position.copy(ballPos);
+sl.castShadow = true;
+sl.shadow.mapSize.set(1024, 1024);
+const sc = sl.shadow.camera;
+sc.near = 0.05; sc.far = 1.6; sc.left = -0.32; sc.right = 0.32; sc.top = 0.32; sc.bottom = -0.32;
+sl.shadow.bias = bias;
+scene.add(sl); scene.add(sl.target);
+
+renderer.render(scene, cam);
+requestAnimationFrame(() => { renderer.render(scene, cam); window.__ready = true; });
+</script>
+</body>
+</html>

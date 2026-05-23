@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CONFIG, D2R } from './config.js';
+import { CONFIG, D2R, HAND_LAYER } from './config.js';
 import { buildHand, DEFAULT_P, setHandCurl } from './glovebuild.js';
 
 // Computes the 5 shooting-spot positions along the 3pt arc.
@@ -43,7 +43,27 @@ export class Player {
     this.leftHand.scale.setScalar(0.85);
     this.rightHand.scale.setScalar(0.85);
     this.arms.add(this.leftHand, this.rightHand);
+    // also light the gloves with the dedicated hand/ball shadow light
+    for (const h of [this.leftHand, this.rightHand]) {
+      h.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.layers.enable(HAND_LAYER); } });
+    }
     this._applyArmPose(0);
+
+    // Dedicated light over the hands so the gloves cast crisp shadows onto the
+    // ball. Isolated to HAND_LAYER so it doesn't brighten the rest of the court.
+    const hl = new THREE.DirectionalLight(0xffffff, 1.4);
+    hl.layers.set(HAND_LAYER);
+    hl.castShadow = true;
+    hl.position.set(0.32, 0.12, -0.26);   // camera-local: above & toward the front
+    hl.target.position.set(0, -0.38, -0.71); // camera-local: the held-ball spot
+    const sh = hl.shadow;
+    sh.mapSize.set(1024, 1024);
+    sh.camera.near = 0.05; sh.camera.far = 1.6;
+    sh.camera.left = -0.32; sh.camera.right = 0.32; sh.camera.top = 0.32; sh.camera.bottom = -0.32;
+    sh.bias = -0.0008;
+    this.camera.add(hl);
+    this.camera.add(hl.target);
+    this.handLight = hl;
   }
 
   // Both gloves grip the ball from the sides (palms turned onto it, fingers

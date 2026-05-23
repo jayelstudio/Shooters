@@ -65,7 +65,10 @@ model.traverse((o) => {
 });
 const wrap = new THREE.Group(); wrap.add(model);
 wrap.scale.setScalar((r * 2) / Math.max(size.x, size.y, size.z));
-wrap.rotation.y = -Math.PI / 4;
+const rx = parseFloat(params.get('rx') ?? '0');
+const ry = parseFloat(params.get('ry') ?? '0');
+const rz = parseFloat(params.get('rz') ?? '0');
+wrap.rotation.set(rx * Math.PI / 180, ry * Math.PI / 180, rz * Math.PI / 180);
 meshGroup.add(wrap);
 meshGroup.rotation.x = spin;
 

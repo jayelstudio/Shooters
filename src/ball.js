@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CONFIG } from './config.js';
+import { CONFIG, HAND_LAYER } from './config.js';
 import { ballTextures } from './materials.js';
 
 const STATE = { HELD: 'held', FLYING: 'flying', DEAD: 'dead' };
@@ -20,7 +20,9 @@ export class Ball {
     });
     this._fallbackBall = new THREE.Mesh(new THREE.SphereGeometry(this.r, 32, 24), mat);
     this._fallbackBall.castShadow = true;
-    this._fallbackBall.rotation.y = -Math.PI / 4; // turned 45deg to the right
+    this._fallbackBall.receiveShadow = true;
+    this._fallbackBall.layers.enable(HAND_LAYER); // lit by the dedicated glove-shadow light
+    this._fallbackBall.rotation.z = Math.PI / 2; // seam lines horizontal
     this.mesh.add(this._fallbackBall);
     scene.add(this.mesh);
     this._loadBallModel();
@@ -79,6 +81,8 @@ export class Ball {
       model.traverse((o) => {
         if (!o.isMesh) return;
         o.castShadow = true;
+        o.receiveShadow = true;
+        o.layers.enable(HAND_LAYER); // lit by the dedicated glove-shadow light
         const prev = o.material;
         const map = prev && prev.map ? prev.map : null;
         const color = (prev && prev.color ? prev.color.clone() : new THREE.Color(0xffffff)).multiplyScalar(1.22);
@@ -96,7 +100,7 @@ export class Ball {
       const wrap = new THREE.Group();
       wrap.add(model);
       wrap.scale.setScalar((this.r * 2) / Math.max(size.x, size.y, size.z));
-      wrap.rotation.y = -Math.PI / 4; // turned 45deg to the right
+      wrap.rotation.z = Math.PI / 2; // seam lines horizontal
 
       this.mesh.remove(this._fallbackBall);
       this.mesh.add(wrap);

@@ -49,3 +49,7 @@ export const CONFIG = {
 };
 
 export const D2R = Math.PI / 180;
+
+// Render layer for the POV gloves + ball, lit by a dedicated shadow light so
+// the gloves cast crisp shadows onto the ball without re-lighting the court.
+export const HAND_LAYER = 3;
