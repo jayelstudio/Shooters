@@ -16,7 +16,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { buildHand, DEFAULT_P, setHandCurl } from '../src/glovebuild.js';
-import { environment } from '../src/materials.js';
+import { environment, ballTextures } from '../src/materials.js';
 
 const params = new URLSearchParams(location.search);
 const lightInt = parseFloat(params.get('int') ?? '0.6');
@@ -41,30 +41,17 @@ cam.position.set(0, 0, 0); cam.lookAt(0, -0.34, -0.71);
 const r = 0.12;
 const ballPos = new THREE.Vector3(0, -0.38, -0.71);
 const ballGroup = new THREE.Group(); ballGroup.position.copy(ballPos); scene.add(ballGroup);
-const loader = new GLTFLoader();
-const gltf = await loader.loadAsync('../basketball.glb');
-const model = gltf.scene;
-const box = new THREE.Box3().setFromObject(model);
-const size = new THREE.Vector3(); box.getSize(size);
-const center = new THREE.Vector3(); box.getCenter(center); model.position.sub(center);
+const ballTex = ballTextures();
 const ramp = new Uint8Array([195, 230, 255]);
 const grad = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
 grad.needsUpdate = true; grad.minFilter = grad.magFilter = THREE.NearestFilter;
-model.traverse((o) => {
-  if (!o.isMesh) return;
-  o.castShadow = true; o.receiveShadow = true;
-  const prev = o.material; const map = prev && prev.map ? prev.map : null;
-  const color = (prev && prev.color ? prev.color.clone() : new THREE.Color(0xffffff)).multiplyScalar(1.22);
-  o.material = new THREE.MeshToonMaterial({
-    color, map, gradientMap: grad,
-    emissive: map ? new THREE.Color(0xffffff) : color.clone().multiplyScalar(0.18),
-    emissiveMap: map, emissiveIntensity: map ? 0.38 : 1,
-  });
-});
-const wrap = new THREE.Group(); wrap.add(model);
-wrap.scale.setScalar((r * 2) / Math.max(size.x, size.y, size.z));
-wrap.rotation.z = Math.PI / 2;
-ballGroup.add(wrap);
+const ballMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(r, 48, 32),
+  new THREE.MeshToonMaterial({ map: ballTex, gradientMap: grad, emissive: 0xffffff, emissiveMap: ballTex, emissiveIntensity: 0.32 })
+);
+ballMesh.castShadow = true; ballMesh.receiveShadow = true;
+ballMesh.rotation.y = THREE.MathUtils.degToRad(30);
+ballGroup.add(ballMesh);
 
 // ---- hands gripping (mirror player._applyArmPose at pose ~0) ----
 const tiltOver = -0.35;

@@ -11,21 +11,25 @@ export class Ball {
     this.audio = audio;
     this.r = CONFIG.ball.radius;
 
-    // Visual root: a group so the glTF ball can be swapped in. Physics moves this.
+    // Visual root group (physics moves this); the textured sphere is its child
+    // so backspin (on the group) stays independent of the seam orientation.
     this.mesh = new THREE.Group();
-    const ballTex = ballTextures();
-    const mat = new THREE.MeshStandardMaterial({
-      map: ballTex, roughness: 0.5, metalness: 0.0,
-      emissive: 0xffffff, emissiveMap: ballTex, emissiveIntensity: 0.22, // brighter
+    const ballTex = ballTextures();           // thick procedural seams
+    const ramp = new Uint8Array([195, 230, 255]); // bright toon ramp
+    const grad = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
+    grad.needsUpdate = true;
+    grad.minFilter = grad.magFilter = THREE.NearestFilter;
+    const mat = new THREE.MeshToonMaterial({
+      map: ballTex, gradientMap: grad,
+      emissive: 0xffffff, emissiveMap: ballTex, emissiveIntensity: 0.32, // brighter
     });
-    this._fallbackBall = new THREE.Mesh(new THREE.SphereGeometry(this.r, 32, 24), mat);
-    this._fallbackBall.castShadow = true;
-    this._fallbackBall.receiveShadow = true;
-    this._fallbackBall.layers.enable(HAND_LAYER); // lit by the dedicated glove-shadow light
-    this._fallbackBall.rotation.z = Math.PI / 2; // seam lines horizontal
-    this.mesh.add(this._fallbackBall);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(this.r, 48, 32), mat);
+    ball.castShadow = true;
+    ball.receiveShadow = true;
+    ball.layers.enable(HAND_LAYER);           // lit by the dedicated glove-shadow light
+    ball.rotation.y = THREE.MathUtils.degToRad(30); // seams read horizontal, vertical seam to the side
+    this.mesh.add(ball);
     scene.add(this.mesh);
-    this._loadBallModel();
 
     this.vel = new THREE.Vector3();
     this.pos = new THREE.Vector3();
@@ -51,62 +55,7 @@ export class Ball {
     this.state = STATE.HELD;
     this.vel.set(0, 0, 0);
     this.scored = false;
-    this.mesh.rotation.set(0, 0, 0); // clear accumulated spin (45deg lives on the visual child)
-  }
-
-  // Load the glTF basketball, toon-shade it, and swap it for the default ball.
-  async _loadBallModel() {
-    try {
-      const { GLTFLoader } = await import(
-        'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/loaders/GLTFLoader.js'
-      );
-      const loader = new GLTFLoader();
-      let gltf = null;
-      for (const url of ['./basketball.glb', './basketball.gltf']) {
-        try { gltf = await loader.loadAsync(url); break; } catch (e) { /* try next */ }
-      }
-      if (!gltf) throw new Error('no basketball model found');
-      const model = gltf.scene;
-
-      const box = new THREE.Box3().setFromObject(model);
-      const size = new THREE.Vector3(); box.getSize(size);
-      const center = new THREE.Vector3(); box.getCenter(center);
-      model.position.sub(center);
-
-      // toon-shade every part, preserving its base colour (brighter ramp + lift)
-      const ramp = new Uint8Array([195, 230, 255]);
-      const grad = new THREE.DataTexture(ramp, ramp.length, 1, THREE.RedFormat);
-      grad.needsUpdate = true;
-      grad.minFilter = grad.magFilter = THREE.NearestFilter;
-      model.traverse((o) => {
-        if (!o.isMesh) return;
-        o.castShadow = true;
-        o.receiveShadow = true;
-        o.layers.enable(HAND_LAYER); // lit by the dedicated glove-shadow light
-        const prev = o.material;
-        const map = prev && prev.map ? prev.map : null;
-        const color = (prev && prev.color ? prev.color.clone() : new THREE.Color(0xffffff)).multiplyScalar(1.22);
-        o.material = new THREE.MeshToonMaterial({
-          color,
-          map,
-          gradientMap: grad,
-          // self-lit lift so the ball reads brighter (use its own texture if present)
-          emissive: map ? new THREE.Color(0xffffff) : color.clone().multiplyScalar(0.18),
-          emissiveMap: map,
-          emissiveIntensity: map ? 0.38 : 1,
-        });
-      });
-
-      const wrap = new THREE.Group();
-      wrap.add(model);
-      wrap.scale.setScalar((this.r * 2) / Math.max(size.x, size.y, size.z));
-      wrap.rotation.z = Math.PI / 2; // seam lines horizontal
-
-      this.mesh.remove(this._fallbackBall);
-      this.mesh.add(wrap);
-    } catch (e) {
-      console.warn('basketball.gltf load failed; keeping default ball.', e);
-    }
+    this.mesh.rotation.set(0, 0, 0); // clear accumulated spin (seam orientation lives on the child)
   }
 
   isHeld() { return this.state === STATE.HELD; }

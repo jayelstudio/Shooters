@@ -42,8 +42,10 @@ export function woodTexture() {
 }
 
 // Basketball: orange pebbled leather with black seams.
-export function ballTextures() {
-  const size = 512;
+// Equirectangular basketball: orange pebble + thick seams (one vertical great
+// circle, the equator, and two curved panel seams). seamWidth is in texels.
+export function ballTextures(seamWidth = 15) {
+  const size = 1024;
   const c = canvas(size);
   const ctx = c.getContext('2d');
   // base orange gradient
@@ -54,22 +56,27 @@ export function ballTextures() {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
   // pebble speckle
-  for (let i = 0; i < 14000; i++) {
+  for (let i = 0; i < 16000; i++) {
     const x = Math.random() * size, y = Math.random() * size;
     const v = Math.random();
     ctx.fillStyle = v > 0.5 ? 'rgba(255,200,140,0.10)' : 'rgba(80,30,0,0.10)';
-    ctx.fillRect(x, y, 1.4, 1.4);
+    ctx.fillRect(x, y, 1.6, 1.6);
   }
-  // seams: equirectangular-ish lines. Vertical seams + two horizontal curves.
+  // thick seams
   ctx.strokeStyle = '#15100c';
-  ctx.lineWidth = 5;
-  for (const fx of [0.25, 0.5, 0.75, 1.0]) {
+  ctx.lineWidth = seamWidth;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // one vertical great circle (front + back meridian) -> minimal pole pinch
+  for (const fx of [0.25, 0.75]) {
     ctx.beginPath(); ctx.moveTo(size * fx, 0); ctx.lineTo(size * fx, size); ctx.stroke();
   }
-  ctx.beginPath();
-  ctx.moveTo(0, size * 0.5);
-  ctx.bezierCurveTo(size * 0.25, size * 0.34, size * 0.75, size * 0.66, size, size * 0.5);
-  ctx.stroke();
+  // equator
+  ctx.beginPath(); ctx.moveTo(0, size * 0.5); ctx.lineTo(size, size * 0.5); ctx.stroke();
+  // two curved panel seams (top + bottom "ears")
+  ctx.beginPath(); ctx.moveTo(0, size * 0.5);
+  ctx.bezierCurveTo(size * 0.25, size * 0.16, size * 0.75, size * 0.16, size, size * 0.5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, size * 0.5);
+  ctx.bezierCurveTo(size * 0.25, size * 0.84, size * 0.75, size * 0.84, size, size * 0.5); ctx.stroke();
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;

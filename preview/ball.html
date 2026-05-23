@@ -36,9 +36,82 @@ cam.position.set(0, 0.0, 0.55); cam.lookAt(0, 0, 0);
 const r = 0.12;
 const meshGroup = new THREE.Group(); scene.add(meshGroup);
 
-const loader = new GLTFLoader();
-const gltf = await loader.loadAsync('../basketball.glb');
-const model = gltf.scene;
+const tex = params.get('tex') || 'baked'; // 'baked' | 'thick'
+const geo = params.get('geo') || 'model'; // 'model' | 'sphere'
+const seamW = parseFloat(params.get('seamW') ?? '14');
+const radius = parseInt(params.get('radius') ?? '3', 10);
+const thr = parseInt(params.get('thr') ?? '80', 10);
+
+// Equirectangular basketball texture with controllable seam width.
+function procBall(seamWidth) {
+  const s = 1024;
+  const c = document.createElement('canvas'); c.width = c.height = s;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, s);
+  g.addColorStop(0, '#e8772a'); g.addColorStop(0.5, '#d4641d'); g.addColorStop(1, '#b9520f');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, s, s);
+  for (let i = 0; i < 16000; i++) {
+    const x = Math.random() * s, y = Math.random() * s, v = Math.random();
+    ctx.fillStyle = v > 0.5 ? 'rgba(255,200,140,0.10)' : 'rgba(80,30,0,0.10)';
+    ctx.fillRect(x, y, 1.4, 1.4);
+  }
+  ctx.strokeStyle = '#15100c'; ctx.lineWidth = seamWidth; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // one vertical great circle (front + back meridian) -> minimal pole convergence
+  for (const fx of [0.25, 0.75]) {
+    ctx.beginPath(); ctx.moveTo(s * fx, 0); ctx.lineTo(s * fx, s); ctx.stroke();
+  }
+  // equator
+  ctx.beginPath(); ctx.moveTo(0, s * 0.5); ctx.lineTo(s, s * 0.5); ctx.stroke();
+  // two curved panel seams (the basketball "ears"), top and bottom
+  ctx.beginPath(); ctx.moveTo(0, s * 0.5);
+  ctx.bezierCurveTo(s * 0.25, s * 0.16, s * 0.75, s * 0.16, s, s * 0.5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, s * 0.5);
+  ctx.bezierCurveTo(s * 0.25, s * 0.84, s * 0.75, s * 0.84, s, s * 0.5); ctx.stroke();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
+}
+
+// Thicken the existing baked seams by dilating dark pixels in the texture's
+// own image (respects the model's UVs). Modifies the texture in place.
+function thickenSeams(texture, radius, threshold) {
+  const image = texture.image; if (!image) return;
+  const w = image.width, h = image.height;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d'); ctx.drawImage(image, 0, 0, w, h);
+  const img = ctx.getImageData(0, 0, w, h); const d = img.data;
+  const mask = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const lum = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+    mask[i] = lum < threshold ? 1 : 0;
+  }
+  const tmp = new Uint8Array(w * h), out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let m = 0; for (let k = -radius; k <= radius; k++) { const xx = x + k; if (xx >= 0 && xx < w && mask[y * w + xx]) { m = 1; break; } } tmp[y * w + x] = m;
+  }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let m = 0; for (let k = -radius; k <= radius; k++) { const yy = y + k; if (yy >= 0 && yy < h && tmp[yy * w + x]) { m = 1; break; } } out[y * w + x] = m;
+  }
+  for (let i = 0; i < w * h; i++) if (out[i]) { d[i * 4] = 0x15; d[i * 4 + 1] = 0x10; d[i * 4 + 2] = 0x0c; }
+  ctx.putImageData(img, 0, 0);
+  texture.image = c; texture.needsUpdate = true;
+}
+
+let model;
+if (geo === 'sphere') {
+  const rampS = new Uint8Array([195, 230, 255]);
+  const gradS = new THREE.DataTexture(rampS, rampS.length, 1, THREE.RedFormat);
+  gradS.needsUpdate = true; gradS.minFilter = gradS.magFilter = THREE.NearestFilter;
+  const map = procBall(seamW);
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 64, 48),
+    new THREE.MeshToonMaterial({ map, gradientMap: gradS, color: new THREE.Color(0xffffff).multiplyScalar(1.0), emissive: 0xffffff, emissiveMap: map, emissiveIntensity: 0.32 })
+  );
+  model = new THREE.Group(); model.add(sphere);
+} else {
+  const loader = new GLTFLoader();
+  const gltf = await loader.loadAsync('../basketball.glb');
+  model = gltf.scene;
+}
 const box = new THREE.Box3().setFromObject(model);
 const size = new THREE.Vector3(); box.getSize(size);
 const center = new THREE.Vector3(); box.getCenter(center);
@@ -51,10 +124,27 @@ const grad = new THREE.DataTexture(rampArr, rampArr.length, 1, THREE.RedFormat);
 grad.needsUpdate = true; grad.minFilter = grad.magFilter = THREE.NearestFilter;
 const eInt = ramp === 'old' ? 0 : ramp === 'bright' ? 0.38 : 0.2;
 const cMul = ramp === 'bright' ? 1.22 : 1.0;
+const seamScale = parseFloat(params.get('seamScale') ?? '1');
+window.__orig = [];
 model.traverse((o) => {
   if (!o.isMesh) return;
+  if (seamScale !== 1 && /002/.test(o.name)) {
+    o.geometry.computeBoundingBox();
+    const bc = new THREE.Vector3(); o.geometry.boundingBox.getCenter(bc);
+    o.geometry.translate(-bc.x, -bc.y, -bc.z);
+    o.scale.setScalar(seamScale);
+    o.position.add(bc);
+  }
   const prev = o.material;
   const map = prev && prev.map ? prev.map : null;
+  window.__orig.push({
+    name: o.name, type: prev && prev.type,
+    verts: o.geometry.attributes.position ? o.geometry.attributes.position.count : 0,
+    hasUV: !!o.geometry.attributes.uv,
+    map: map && map.image ? `${map.image.width}x${map.image.height}` : 'none',
+    normalMap: !!(prev && prev.normalMap), vColor: !!o.geometry.attributes.color,
+  });
+  if (tex === 'thick' && map) thickenSeams(map, radius, thr);
   const color = (prev && prev.color ? prev.color.clone() : new THREE.Color(0xffffff)).multiplyScalar(cMul);
   o.material = new THREE.MeshToonMaterial({
     color, map, gradientMap: grad,
@@ -71,6 +161,21 @@ const rz = parseFloat(params.get('rz') ?? '0');
 wrap.rotation.set(rx * Math.PI / 180, ry * Math.PI / 180, rz * Math.PI / 180);
 meshGroup.add(wrap);
 meshGroup.rotation.x = spin;
+
+// debug: report model structure
+const info = [];
+model.traverse((o) => {
+  if (!o.isMesh) return;
+  const g = o.geometry; const m = o.material;
+  info.push({
+    name: o.name,
+    verts: g.attributes.position ? g.attributes.position.count : 0,
+    hasUV: !!g.attributes.uv,
+    map: m.map && m.map.image ? `${m.map.image.width}x${m.map.image.height}` : 'none',
+    normalMap: !!m.normalMap,
+  });
+});
+window.__info = info;
 
 renderer.render(scene, cam);
 requestAnimationFrame(() => { renderer.render(scene, cam); window.__ready = true; });
