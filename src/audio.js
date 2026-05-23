@@ -339,12 +339,13 @@ export class AudioEngine {
     this._playBuffer(buf, 0.9);
   }
 
-  // reason: 'short' -> miss-1, 'past' -> miss-3, else random
+  // reason: 'short' -> miss-1, 'long'/'past' -> miss-3, else miss-2
   playMiss(reason) {
     const m = this.sfx && this.sfx.misses ? this.sfx.misses : [];
     let buf;
     if (reason === 'short') buf = m[0];
-    else if (reason === 'past') buf = m[2];
+    else if (reason === 'long' || reason === 'past') buf = m[2];
+    else buf = m[1];
     if (!buf) { const avail = m.filter(Boolean); buf = avail[(Math.random() * avail.length) | 0]; }
     this._playBuffer(buf, 0.9);
   }

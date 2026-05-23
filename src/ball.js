@@ -151,8 +151,9 @@ export class Ball {
     // backspin scaled by shot force (+x = top rotates back toward shooter, ball travels -z)
     this.spin.set(speed * 1.5, (Math.random() - 0.5) * 0.4, 0);
     this.touchedRim = false;
+    this.touchedBackboard = false;
     this.missReason = 'other';
-    this._minZ = Infinity; // most-forward z reached (for short/past classification)
+    this._missAnnounced = false; // miss sound plays once, at the first floor bounce
   }
 
   update(dt, audio) {
@@ -190,9 +191,6 @@ export class Ball {
     this.prev.copy(this.pos);
     this.vel.y -= gravity * h;
     this.pos.addScaledVector(this.vel, h);
-    // Track how far forward the ball got on its airborne approach only; after it
-    // hits the floor it can roll forward, which would mis-flag a short shot.
-    if (this.floorBounces === 0 && this.pos.z < this._minZ) this._minZ = this.pos.z;
 
     // ---- score: downward crossing of the rim plane, inside the ring ----
     if (!this.scored && this.prev.y >= rim.center.y && this.pos.y < rim.center.y && this.vel.y < 0) {
@@ -248,6 +246,7 @@ export class Ball {
       this.pos.z = backboard.z + this.r;
       this.vel.z = -this.vel.z * ball.restitutionBoard;
       this.vel.x *= 0.85; this.vel.y *= 0.92;
+      this.touchedBackboard = true;
       if (Math.abs(this.vel.z) > 0.3) audio.backboard();
     }
 
@@ -261,6 +260,12 @@ export class Ball {
         this.vel.z *= ball.frictionBounce;
         this.floorBounces++;
         if (speed > 0.5) audio.bounceFloor(Math.min(1, speed / 4));
+        // First floor contact decides the miss sound (short vs long), immediately.
+        if (this.floorBounces === 1 && !this.scored && !this._missAnnounced) {
+          this.missReason = (this.touchedBackboard || this.pos.z <= 0.15) ? 'long' : 'short';
+          this._missAnnounced = true;
+          audio.playMiss(this.missReason);
+        }
         if (this.vel.y < 0.6) { this.vel.y = 0; }
       }
     }
@@ -273,11 +278,11 @@ export class Ball {
     const madeAndDropped = this.scored && (this.flightTime - this._scoreFlightTime) > 1.2;
     if ((resting && this.floorBounces >= 1) || offCourt || madeAndDropped || this.flightTime > 6) {
       this.state = STATE.DEAD;
-      if (!this.scored) {
-        const bz = CONFIG.backboard.z;
-        if (this._minZ < bz - 0.05) this.missReason = 'past';   // cleared/over the backboard
-        else if (this._minZ > 0.5) this.missReason = 'short';   // never reached the basket
-        else this.missReason = 'other';                          // rim-out / side
+      // Fallback for misses that never bounced on the floor (e.g. sailed off-court).
+      if (!this.scored && !this._missAnnounced) {
+        this.missReason = (this.touchedBackboard || this.pos.z <= 0.15) ? 'long' : 'short';
+        this._missAnnounced = true;
+        this.audio.playMiss(this.missReason);
       }
       this.onResolved(this.scored);
     }

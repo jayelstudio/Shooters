@@ -287,8 +287,7 @@ export class Game {
       this.streak = 0;
       this.lives--;
       this._popup('MISS', '#ff5a6a');
-      this.audio.miss(); // crowd "aww"
-      this.audio.playMiss(this.ball.missReason); // short -> miss-1, past -> miss-3, else random
+      this.audio.miss(); // crowd "aww" (the miss-*.mp3 already played on first bounce)
       this._refreshHUD();
       if (this.lives <= 0) { this._gameOver(); return; }
     }
