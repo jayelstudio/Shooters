@@ -42,7 +42,7 @@ export class AudioEngine {
     if (!AC) { this.enabled = false; return; }
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : 0.9;
+    this.master.gain.value = 0.9;
     this.master.connect(this.ctx.destination);
     this._unlockSpeaker();
     this._startCrowd();
@@ -116,11 +116,10 @@ export class AudioEngine {
     return el;
   }
 
-  // Mute/unmute all game audio (SFX via master gain, music via the element).
+  // Mute/unmute only the background music (sound effects keep playing).
   setMuted(m) {
     this.muted = !!m;
     try { localStorage.setItem('buckets.muted', this.muted ? '1' : '0'); } catch (_) { /* ignore */ }
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.9;
     if (this._music) this._music.muted = this.muted;
   }
 
@@ -255,7 +254,7 @@ export class AudioEngine {
   // Random effort grunt on release.
   grunt() {
     const a = this.samples.grunts;
-    if (a && a.length) this._playBuffer(a[(Math.random() * a.length) | 0], 0.9, 0.96 + Math.random() * 0.08);
+    if (a && a.length) this._playBuffer(a[(Math.random() * a.length) | 0], 1.26, 0.96 + Math.random() * 0.08);
   }
 
   bounceFloor(strength = 1) {
