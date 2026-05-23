@@ -190,7 +190,9 @@ export class Ball {
     this.prev.copy(this.pos);
     this.vel.y -= gravity * h;
     this.pos.addScaledVector(this.vel, h);
-    if (this.pos.z < this._minZ) this._minZ = this.pos.z;
+    // Track how far forward the ball got on its airborne approach only; after it
+    // hits the floor it can roll forward, which would mis-flag a short shot.
+    if (this.floorBounces === 0 && this.pos.z < this._minZ) this._minZ = this.pos.z;
 
     // ---- score: downward crossing of the rim plane, inside the ring ----
     if (!this.scored && this.prev.y >= rim.center.y && this.pos.y < rim.center.y && this.vel.y < 0) {
