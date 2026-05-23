@@ -1,6 +1,6 @@
 // Buckets service worker — offline support.
 // Bump CACHE to force clients to fetch fresh copies on next load.
-const CACHE = 'buckets-v4';
+const CACHE = 'buckets-v5';
 
 // App shell (same-origin). Paths are relative to the SW location (repo root).
 const LOCAL = [
@@ -24,9 +24,13 @@ const CDN = [
   'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/loaders/OBJLoader.js',
 ];
 
-// Best-effort (may not exist yet): background music tracks.
+// Best-effort: background music + sfx folder (cheers/misses/level/extra).
 const OPTIONAL = [
   './background-1.mp3', './background-2.mp3', './background-3.mp3',
+  './sfx/cheer-1.mp3', './sfx/cheer-2.mp3', './sfx/cheer-3.mp3', './sfx/cheer-4.mp3',
+  './sfx/cheer-5.mp3', './sfx/cheer-6.mp3', './sfx/cheer-7.mp3',
+  './sfx/miss-1.mp3', './sfx/miss-2.mp3', './sfx/miss-3.mp3',
+  './sfx/level-1.mp3', './sfx/extra-1.mp3',
 ];
 
 self.addEventListener('install', (e) => {

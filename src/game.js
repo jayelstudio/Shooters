@@ -19,6 +19,7 @@ export class Game {
     this.makes = 0;
     this.required = CONFIG.game.baseRequired;
     this.streak = 0;
+    this._firstMake = true; // first basket of the game -> always cheer-1
 
     this.targetIndex = 2;
 
@@ -142,6 +143,7 @@ export class Game {
   }
 
   start() {
+    this._firstMake = true;
     this.audio.init();
     this.audio.resume();
     this.audio.playRandomMusic();
@@ -159,6 +161,7 @@ export class Game {
     this.makes = 0;
     this.required = CONFIG.game.baseRequired;
     this.streak = 0;
+    this._firstMake = true;
     this.mSpeed = CONFIG.meter.baseSpeed;
     this.perfectTol = CONFIG.meter.basePerfectTol;
     $('overlay-over').classList.add('hidden');
@@ -266,7 +269,10 @@ export class Game {
     this.score += pts;
 
     this._popup(this.lastPerfect ? 'SWISH! +' + pts : 'BUCKET +' + pts, '#39ff9e');
-    this.audio.cheer(this.lastPerfect);
+    this.audio.cheer(this.lastPerfect); // crowd swell
+    if (this.streak === 4) this.audio.playExtra();          // 4 in a row
+    else this.audio.playCheer(this._firstMake);             // cheer-1 on first basket, else random
+    this._firstMake = false;
 
     if (this.lastFromTarget) {
       this.makes++;
@@ -281,7 +287,8 @@ export class Game {
       this.streak = 0;
       this.lives--;
       this._popup('MISS', '#ff5a6a');
-      this.audio.miss();
+      this.audio.miss(); // crowd "aww"
+      this.audio.playMiss(this.ball.missReason); // short -> miss-1, past -> miss-3, else random
       this._refreshHUD();
       if (this.lives <= 0) { this._gameOver(); return; }
     }

@@ -151,6 +151,8 @@ export class Ball {
     // backspin scaled by shot force (+x = top rotates back toward shooter, ball travels -z)
     this.spin.set(speed * 1.5, (Math.random() - 0.5) * 0.4, 0);
     this.touchedRim = false;
+    this.missReason = 'other';
+    this._minZ = Infinity; // most-forward z reached (for short/past classification)
   }
 
   update(dt, audio) {
@@ -188,6 +190,7 @@ export class Ball {
     this.prev.copy(this.pos);
     this.vel.y -= gravity * h;
     this.pos.addScaledVector(this.vel, h);
+    if (this.pos.z < this._minZ) this._minZ = this.pos.z;
 
     // ---- score: downward crossing of the rim plane, inside the ring ----
     if (!this.scored && this.prev.y >= rim.center.y && this.pos.y < rim.center.y && this.vel.y < 0) {
@@ -268,6 +271,12 @@ export class Ball {
     const madeAndDropped = this.scored && (this.flightTime - this._scoreFlightTime) > 1.2;
     if ((resting && this.floorBounces >= 1) || offCourt || madeAndDropped || this.flightTime > 6) {
       this.state = STATE.DEAD;
+      if (!this.scored) {
+        const bz = CONFIG.backboard.z;
+        if (this._minZ < bz - 0.05) this.missReason = 'past';   // cleared/over the backboard
+        else if (this._minZ > 0.5) this.missReason = 'short';   // never reached the basket
+        else this.missReason = 'other';                          // rim-out / side
+      }
       this.onResolved(this.scored);
     }
   }

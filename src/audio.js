@@ -24,6 +24,7 @@ export class AudioEngine {
     this.enabled = true;
     this._silentEl = null;
     this.samples = { grunts: [] }; // decoded mp3 buffers (filled in init)
+    this.sfx = { cheers: [], misses: [], level: null, extra: null };
     // background music (streamed via <audio>; switched on level-up)
     this._music = null;
     this._musicIndex = -1;
@@ -65,6 +66,20 @@ export class AudioEngine {
       decode('./ball-bounce.mp3'), decode('./rim.mp3'), decode('./backboard.mp3'), decode('./net.mp3'),
     ]);
     this.samples = { grunts: [g1, g2, g3].filter(Boolean), bounce, rim, board, net };
+
+    // sfx/ folder: cheers, misses, level, extra
+    const [c1, c2, c3, c4, c5, c6, c7, m1, m2, m3, level, extra] = await Promise.all([
+      decode('./sfx/cheer-1.mp3'), decode('./sfx/cheer-2.mp3'), decode('./sfx/cheer-3.mp3'),
+      decode('./sfx/cheer-4.mp3'), decode('./sfx/cheer-5.mp3'), decode('./sfx/cheer-6.mp3'),
+      decode('./sfx/cheer-7.mp3'),
+      decode('./sfx/miss-1.mp3'), decode('./sfx/miss-2.mp3'), decode('./sfx/miss-3.mp3'),
+      decode('./sfx/level-1.mp3'), decode('./sfx/extra-1.mp3'),
+    ]);
+    this.sfx = {
+      cheers: [c1, c2, c3, c4, c5, c6, c7], // index 0 = cheer-1 (first basket)
+      misses: [m1, m2, m3],                 // 0 = short, 2 = past backboard
+      level, extra,
+    };
   }
 
   _playBuffer(buf, gain = 0.9, rate = 1) {
@@ -286,7 +301,7 @@ export class AudioEngine {
     this._noiseBurst({ dur: 0.22, gain: 0.16, type: 'highpass', freq: 5000 });
   }
 
-  // Crowd cheer: layered rising noise + chord.
+  // Crowd murmur swell (the distinct cheer sound is the cheer-*.mp3 sample).
   cheer(big = false) {
     if (!this.ctx || !this.enabled) return;
     const t = this._now();
@@ -295,20 +310,16 @@ export class AudioEngine {
     g.setValueAtTime(g.value, t);
     g.linearRampToValueAtTime(big ? 0.4 : 0.28, t + 0.15);
     g.linearRampToValueAtTime(0.05, t + (big ? 2.2 : 1.4));
-    const notes = big ? [392, 523, 659, 784] : [392, 523];
-    notes.forEach((f, i) => this._tone({ freq: f, type: 'sawtooth', dur: 0.5, gain: 0.05, decay: 0.4 }));
-    this._noiseBurst({ dur: 0.6, gain: 0.12, type: 'bandpass', freq: 1500 });
   }
 
   miss() {
-    // soft "aww" dip
+    // soft crowd "aww" dip (the miss-*.mp3 sample is the distinct sound)
     if (!this.ctx || !this.enabled) return;
     const t = this._now();
     const g = this.crowdGain.gain;
     g.cancelScheduledValues(t);
     g.linearRampToValueAtTime(0.02, t + 0.6);
     g.linearRampToValueAtTime(0.04, t + 1.6);
-    this._tone({ freq: 300, freqEnd: 180, type: 'sine', dur: 0.3, gain: 0.05, decay: 0.2 });
   }
 
   buzzer() {
@@ -316,9 +327,28 @@ export class AudioEngine {
   }
 
   levelUp() {
-    [523, 659, 784, 1047].forEach((f, i) => {
-      setTimeout(() => this._tone({ freq: f, type: 'triangle', dur: 0.12, gain: 0.18, decay: 0.1 }), i * 90);
-    });
+    this.playLevel();
     this.cheer(true);
   }
+
+  // ----- Sample-based reactions (sfx/ folder) -----
+  playCheer(first = false) {
+    const c = this.sfx && this.sfx.cheers ? this.sfx.cheers.filter(Boolean) : [];
+    if (!c.length) return;
+    const buf = first && this.sfx.cheers[0] ? this.sfx.cheers[0] : c[(Math.random() * c.length) | 0];
+    this._playBuffer(buf, 0.9);
+  }
+
+  // reason: 'short' -> miss-1, 'past' -> miss-3, else random
+  playMiss(reason) {
+    const m = this.sfx && this.sfx.misses ? this.sfx.misses : [];
+    let buf;
+    if (reason === 'short') buf = m[0];
+    else if (reason === 'past') buf = m[2];
+    if (!buf) { const avail = m.filter(Boolean); buf = avail[(Math.random() * avail.length) | 0]; }
+    this._playBuffer(buf, 0.9);
+  }
+
+  playLevel() { if (this.sfx && this.sfx.level) this._playBuffer(this.sfx.level, 0.9); }
+  playExtra() { if (this.sfx && this.sfx.extra) this._playBuffer(this.sfx.extra, 0.95); }
 }
