@@ -240,6 +240,7 @@ export class Game {
     this.lastPerfect = perfect;
     this.lastFromTarget = this.player.index === this.targetIndex;
     this.ball.shoot(factor, lateral);
+    this.audio.grunt(); // random effort grunt on release
     this.player.startFollowThrough();
     this.player.startShotZoom(); // subtle dolly toward the rim on release
   }

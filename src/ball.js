@@ -148,6 +148,7 @@ export class Ball {
     this.floorBounces = 0;
     // backspin scaled by shot force (+x = top rotates back toward shooter, ball travels -z)
     this.spin.set(speed * 1.5, (Math.random() - 0.5) * 0.4, 0);
+    this.touchedRim = false;
     this.audio.shoot();
   }
 
@@ -197,7 +198,7 @@ export class Ball {
         this._netTimer = 0.4;
         // net catches the ball: kill most horizontal speed so it drops straight
         this.vel.x *= 0.35; this.vel.z *= 0.35; this.vel.y *= 0.7;
-        audio.swish();
+        if (this.touchedRim) audio.rimScore(); else audio.swish();
         this.onScore();
       }
     }
@@ -226,6 +227,7 @@ export class Ball {
             this.vel.y -= (1 + e) * vn * ny;
             this.vel.z -= (1 + e) * vn * nz;
             this.vel.multiplyScalar(0.9);
+            this.touchedRim = true;
             if (Math.abs(vn) > 0.4) audio.rim();
           }
         }

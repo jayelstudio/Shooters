@@ -23,6 +23,7 @@ export class AudioEngine {
     this.crowdGain = null;
     this.enabled = true;
     this._silentEl = null;
+    this.samples = { grunts: [] }; // decoded mp3 buffers (filled in init)
   }
 
   // Must be called from a user gesture (tap) to satisfy autoplay policies.
@@ -36,6 +37,36 @@ export class AudioEngine {
     this.master.connect(this.ctx.destination);
     this._unlockSpeaker();
     this._startCrowd();
+    this._loadSamples();
+  }
+
+  // Decode the uploaded mp3 sound effects into AudioBuffers.
+  async _loadSamples() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const decode = async (url) => {
+      try {
+        const r = await fetch(url);
+        const a = await r.arrayBuffer();
+        return await ctx.decodeAudioData(a);
+      } catch (e) { return null; }
+    };
+    const [g1, g2, g3, bounce, rim, board, net] = await Promise.all([
+      decode('./grunt-1.mp3'), decode('./grunt-2.mp3'), decode('./grunt-3.mp3'),
+      decode('./ball-bounce.mp3'), decode('./rim.mp3'), decode('./backboard.mp3'), decode('./net.mp3'),
+    ]);
+    this.samples = { grunts: [g1, g2, g3].filter(Boolean), bounce, rim, board, net };
+  }
+
+  _playBuffer(buf, gain = 0.9, rate = 1) {
+    if (!this.ctx || !this.enabled || !buf) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    if (rate !== 1) src.playbackRate.value = rate;
+    const g = this.ctx.createGain();
+    g.gain.value = gain;
+    src.connect(g).connect(this.master);
+    src.start(this._now());
   }
 
   // Keep a silent looping <audio> element alive to route Web Audio to the
@@ -147,22 +178,38 @@ export class AudioEngine {
     this._noiseBurst({ dur: 0.04, gain: 0.12, type: 'lowpass', freq: 400 });
   }
 
+  // Random effort grunt on release.
+  grunt() {
+    const a = this.samples.grunts;
+    if (a && a.length) this._playBuffer(a[(Math.random() * a.length) | 0], 0.9, 0.96 + Math.random() * 0.08);
+  }
+
   bounceFloor(strength = 1) {
+    if (this.samples.bounce) { this._playBuffer(this.samples.bounce, Math.min(1, 0.45 + 0.55 * strength)); return; }
     this._tone({ freq: 130, freqEnd: 60, type: 'sine', dur: 0.05, gain: 0.3 * strength, decay: 0.05 });
     this._noiseBurst({ dur: 0.05, gain: 0.1 * strength, type: 'lowpass', freq: 500 });
   }
 
+  // Quick synth clank on any rim contact (physical feedback).
   rim() {
     this._tone({ freq: 280, freqEnd: 180, type: 'triangle', dur: 0.06, gain: 0.18, decay: 0.1 });
     this._noiseBurst({ dur: 0.05, gain: 0.12, type: 'bandpass', freq: 2200 });
   }
 
+  // Made off the rim (rattles in).
+  rimScore() {
+    if (this.samples.rim) this._playBuffer(this.samples.rim, 0.95);
+    else this.rim();
+  }
+
   backboard() {
+    if (this.samples.board) { this._playBuffer(this.samples.board, 0.85); return; }
     this._tone({ freq: 200, freqEnd: 120, type: 'square', dur: 0.07, gain: 0.16, decay: 0.12 });
     this._noiseBurst({ dur: 0.06, gain: 0.1, type: 'lowpass', freq: 900 });
   }
 
   swish() {
+    if (this.samples.net) { this._playBuffer(this.samples.net, 0.95); return; }
     this._noiseBurst({ dur: 0.22, gain: 0.16, type: 'highpass', freq: 5000 });
   }
 

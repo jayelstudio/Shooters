@@ -1,6 +1,6 @@
 // Buckets service worker — offline support.
 // Bump CACHE to force clients to fetch fresh copies on next load.
-const CACHE = 'buckets-v1';
+const CACHE = 'buckets-v2';
 
 // App shell (same-origin). Paths are relative to the SW location (repo root).
 const LOCAL = [
@@ -13,6 +13,8 @@ const LOCAL = [
   './continue-btn.svg', './end-game-btn.svg',
   './bball.png', './buckets-splash.png', './buckets-arena.jpg',
   './ball/basketball.obj', './ball/basketball.jpg', './ball/basketball_NORM.jpg',
+  './grunt-1.mp3', './grunt-2.mp3', './grunt-3.mp3', './ball-bounce.mp3',
+  './rim.mp3', './backboard.mp3', './net.mp3',
 ];
 
 // Cross-origin deps fetched at runtime (the SW doesn't control the very first
