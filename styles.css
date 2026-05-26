@@ -1,0 +1,469 @@
+:root {
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #05060a;
+  color: #fff;
+  font-family: 'Oswald', 'Arial Narrow', Impact, system-ui, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---------- HUD (DOM stats hidden; rendered as 3D panels in the scene) ---------- */
+.hud-side { display: none; }
+.hud-left { left: calc(env(safe-area-inset-left, 0px) + 10px); }
+.hud-right { right: calc(env(safe-area-inset-right, 0px) + 10px); }
+.hud-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 92px;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.hud-label {
+  font-size: 20px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+.hud-cell span:last-child {
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+/* makes count: orange + glow doubles as the progress indicator */
+#hud-makes {
+  color: #ff7a18;
+  text-shadow: 0 0 12px rgba(255, 122, 24, 0.9), 0 0 4px rgba(255, 122, 24, 0.7);
+}
+
+/* Directional cue: bright orange arrow beside the backboard (positioned in JS) */
+#dir-arrow {
+  position: fixed;
+  z-index: 11;
+  font-size: 68px;
+  line-height: 1;
+  color: #ff7a18;
+  text-shadow: 0 0 22px rgba(255, 122, 24, 0.95), 0 3px 8px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: arrow-pulse 0.7s ease-in-out infinite;
+}
+@keyframes arrow-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* "SHOOT!" cue above the backboard when the player is on the target spot */
+#shoot-cue {
+  position: fixed;
+  z-index: 11;
+  font-weight: 700;
+  font-size: 36px;
+  letter-spacing: 3px;
+  color: #ff7a18;
+  text-shadow: 0 0 18px rgba(255, 122, 24, 0.9), 0 3px 8px rgba(0, 0, 0, 0.75);
+  transform-origin: center bottom;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: cue-pulse 0.55s ease-in-out infinite;
+}
+@keyframes cue-pulse {
+  0%, 100% { transform: translate(-50%, -100%) scale(1); }
+  50% { transform: translate(-50%, -100%) scale(1.12); }
+}
+#dir-arrow.hidden, #shoot-cue.hidden { display: none; }
+
+#banner {
+  position: fixed;
+  top: 32%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.8);
+  font-size: 40px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #fff;
+  text-shadow: 0 4px 20px rgba(57, 208, 255, 0.7);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 20;
+  transition: opacity 0.3s, transform 0.3s;
+}
+#banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+#popup {
+  position: fixed;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 19;
+}
+#popup.show { animation: pop 1.1s ease forwards; }
+@keyframes pop {
+  0% { opacity: 0; transform: translate(-50%, -40%) scale(0.6); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+  70% { opacity: 1; transform: translate(-50%, -55%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -75%) scale(0.95); }
+}
+
+/* ---------- Power meter (centered; only visible while charging) ---------- */
+#meter {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-b) + 150px);
+  transform: translateX(-50%);
+  width: 28px;
+  height: 240px;
+  background: rgba(8, 12, 20, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  overflow: hidden;
+  z-index: 12;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#meter.active { opacity: 1; box-shadow: 0 0 18px rgba(57, 208, 255, 0.5); }
+#meter-fill {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 0%;
+  background: linear-gradient(180deg, #ff5a6a, #ffd23f 55%, #39ff9e);
+}
+#meter-zone {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 42%;
+  height: 16%;
+  background: rgba(57, 255, 158, 0.35);
+  border-top: 2px solid #39ff9e;
+  border-bottom: 2px solid #39ff9e;
+}
+#meter-indicator {
+  position: absolute;
+  left: -3px; right: -3px;
+  bottom: 0%;
+  height: 3px;
+  background: #fff;
+  box-shadow: 0 0 8px #fff;
+}
+
+/* ---------- Controls ---------- */
+#controls {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 15;
+  pointer-events: none;
+}
+.ctl {
+  pointer-events: auto;
+  font-family: inherit;
+  font-weight: 800;
+  color: #fff;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+.ctl:active { transform: scale(0.94); }
+
+/* Move arrows: left on the left edge, right on the right edge, same height */
+.ctl.move {
+  position: fixed;
+  bottom: calc(var(--safe-b) + 150px + 10vh);
+  width: 53px;
+  height: 53px;
+  background: none;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.6));
+}
+#btn-left { left: calc(env(safe-area-inset-left, 0px) + 18px); }
+#btn-right { right: calc(env(safe-area-inset-right, 0px) + 18px); }
+.ctl.move img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.ctl.big {
+  position: fixed;
+  bottom: calc(var(--safe-b) + 18px);
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  padding: 0;
+  background: none;
+}
+.ctl.big img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+/* Timeout / pause button (just the white icon, no background) */
+.ctl.timeout {
+  left: calc(env(safe-area-inset-left, 0px) + 18px);
+  width: 92px;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.6));
+}
+.ctl.timeout img { width: 72%; height: 72%; }
+
+/* Shoot button — the basketball graphic itself */
+.ctl.shoot {
+  right: calc(env(safe-area-inset-right, 0px) + 18px);
+  width: 105px;
+  height: 105px;
+  border: none;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
+}
+#btn-shoot:active { transform: none; } /* press feedback handled on the ball image */
+#btn-shoot img { transition: transform 0.07s ease; }
+#btn-shoot.pressed img { transform: scale(0.86); }
+#btn-shoot.release img { animation: bball-bounce 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes bball-bounce {
+  0% { transform: scale(0.86); }
+  55% { transform: scale(1.09); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- Overlays ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 30%, rgba(20, 30, 50, 0.85), rgba(3, 4, 8, 0.96));
+  backdrop-filter: blur(4px);
+  padding: 24px;
+}
+.overlay.hidden { display: none; }
+
+/* Full-screen splash start screen (the whole thing taps to play) */
+.overlay.splash {
+  padding: 0;
+  background: #0a1622;
+  cursor: pointer;
+  overflow: hidden;
+}
+.overlay.splash::before { /* blurred fill so there are no letterbox bars */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url(./buckets-splash.png) center / cover no-repeat;
+  filter: blur(28px) brightness(0.7);
+  transform: scale(1.15);
+}
+/* Audio settings overlay */
+.audio-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 22px;
+  max-width: 340px;
+}
+.vol-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.vol-label {
+  font-size: 16px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.vol-slider {
+  width: 100%;
+  height: 30px;
+  accent-color: #39d0ff;
+  cursor: pointer;
+  touch-action: auto; /* override body touch-action:none so the thumb can be dragged */
+}
+
+/* Persistent mute toggle (top-left), same pill style as the reset button */
+.mute-btn {
+  position: fixed;
+  z-index: 40;
+  top: calc(var(--safe-t) + 12px);
+  left: calc(env(safe-area-inset-left, 0px) + 12px);
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+.mute-btn:active { transform: scale(0.95); }
+
+/* Reset cache / data button on the splash (top-right, above the safe area) */
+.clear-btn {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--safe-t) + 12px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+.clear-btn:active { transform: scale(0.95); }
+
+.splash-img { /* the full splash, never cropped */
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.panel {
+  text-align: center;
+  max-width: 360px;
+  width: 100%;
+}
+.panel h1 {
+  font-size: 44px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  background: linear-gradient(90deg, #ff8a3d, #ffd23f, #39ff9e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.panel .sub {
+  font-size: 16px;
+  opacity: 0.85;
+  margin-top: 6px;
+  margin-bottom: 18px;
+}
+.how {
+  list-style: none;
+  text-align: left;
+  margin: 0 auto 22px;
+  max-width: 300px;
+  font-size: 14px;
+  line-height: 1.9;
+  opacity: 0.9;
+}
+.how b { color: #ffd23f; }
+.primary {
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 1px;
+  color: #06121f;
+  padding: 16px 34px;
+  border: none;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #39d0ff, #39ff9e);
+  box-shadow: 0 6px 24px rgba(57, 208, 255, 0.5);
+  cursor: pointer;
+}
+.primary:active { transform: scale(0.96); }
+.tip { margin-top: 16px; font-size: 12px; opacity: 0.55; }
+
+/* Pause / time-out overlay */
+.pause-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+.pause-title {
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: 5px;
+  color: #fff;
+  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.6);
+}
+.img-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  width: 80%;
+  max-width: 340px;
+}
+.img-btn img {
+  width: 100%;
+  height: auto;
+  display: block;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+.img-btn:active { transform: scale(0.96); }
+
+/* small-height landscape phones: shrink controls a touch */
+@media (max-height: 480px) {
+  .ctl.big { width: 96px; height: 96px; }
+  .ctl.shoot { width: 82px; height: 82px; }
+  .ctl.timeout { width: 72px; height: 72px; }
+  #meter { height: 150px; bottom: calc(var(--safe-b) + 110px); }
+  .ctl.move { bottom: calc(var(--safe-b) + 110px); }
+}
